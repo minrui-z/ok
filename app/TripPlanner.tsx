@@ -253,7 +253,7 @@ const days: Day[] = [
     date: "9/1",
     weekday: "週二",
     location: "TPE → SEA",
-    title: "越過日期變更線",
+    title: "越過換日線",
     note: "七小時留在 SEA：入境、重新托運、安檢、晚餐。",
     kind: "flight",
     activities: [
