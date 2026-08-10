@@ -2,6 +2,7 @@ import {
   apiError,
   authenticated,
   clearSessionCookie,
+  ensureCollabSchema,
   json,
   requireSameOrigin,
   runtimeSecrets,
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
   if (!pin || !/^\d{4}$/.test(pin) || !nickname) return apiError("請輸入四位數密碼與暱稱。", 400);
 
   const db = getD1();
+  await ensureCollabSchema(db);
   const key = await sourceHash(request, secrets.signingSecret);
   const now = Date.now();
   const attempt = await db.prepare(

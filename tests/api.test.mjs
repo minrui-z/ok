@@ -65,6 +65,13 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
     assert.equal((await request("/api/collab/notes")).status, 401);
   });
 
+  await t.test("unsupported PBKDF2 iteration counts fail closed", async () => {
+    const supportedHash = bindings.COLLAB_PIN_HASH;
+    bindings.COLLAB_PIN_HASH = supportedHash.replace("pbkdf2$100000$", "pbkdf2$210000$");
+    assert.equal((await request("/api/collab/session", { method: "POST", body: { pin: "2468", nickname: "Min" }, ip: "203.0.113.11" })).status, 401);
+    bindings.COLLAB_PIN_HASH = supportedHash;
+  });
+
   await t.test("five wrong PINs lock one source", async () => {
     for (let index = 0; index < 4; index += 1) {
       assert.equal((await request("/api/collab/session", { method: "POST", body: { pin: "1111", nickname: "Wrong" }, ip: "203.0.113.20" })).status, 401);

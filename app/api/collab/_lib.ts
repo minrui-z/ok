@@ -59,7 +59,8 @@ function safeEqual(left: string, right: string) {
 export async function verifyPin(pin: string, encodedHash: string) {
   const [algorithm, iterationsText, saltText, expected] = encodedHash.split("$");
   const iterations = Number(iterationsText);
-  if (algorithm !== "pbkdf2" || !Number.isInteger(iterations) || iterations < 100_000 || !saltText || !expected) return false;
+  // Cloudflare Workers currently caps Web Crypto PBKDF2 at 100,000 iterations.
+  if (algorithm !== "pbkdf2" || iterations !== 100_000 || !saltText || !expected) return false;
   const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
     { name: "PBKDF2", hash: "SHA-256", salt: base64UrlToBytes(saltText), iterations },
@@ -140,7 +141,39 @@ export function apiError(message: string, status: number) {
   return json({ error: message }, status);
 }
 
+let schemaReady: Promise<void> | null = null;
+
+export function ensureCollabSchema(db: D1Database) {
+  if (!schemaReady) {
+    const statements = [
+      "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY NOT NULL, scope TEXT NOT NULL, day_id TEXT, author_id TEXT NOT NULL, author_name TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+      "CREATE INDEX IF NOT EXISTS idx_notes_scope_day_updated ON notes (scope, day_id, updated_at)",
+      "CREATE INDEX IF NOT EXISTS idx_notes_author ON notes (author_id)",
+      "CREATE TABLE IF NOT EXISTS polls (id TEXT PRIMARY KEY NOT NULL, question TEXT NOT NULL, type TEXT NOT NULL, scope TEXT NOT NULL, day_id TEXT, status TEXT DEFAULT 'open' NOT NULL, author_id TEXT NOT NULL, author_name TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+      "CREATE INDEX IF NOT EXISTS idx_polls_scope_day_updated ON polls (scope, day_id, updated_at)",
+      "CREATE INDEX IF NOT EXISTS idx_polls_author ON polls (author_id)",
+      "CREATE TABLE IF NOT EXISTS poll_options (id TEXT PRIMARY KEY NOT NULL, poll_id TEXT NOT NULL REFERENCES polls(id) ON DELETE CASCADE, label TEXT NOT NULL, position INTEGER NOT NULL)",
+      "CREATE UNIQUE INDEX IF NOT EXISTS uidx_poll_options_position ON poll_options (poll_id, position)",
+      "CREATE INDEX IF NOT EXISTS idx_poll_options_poll ON poll_options (poll_id)",
+      "CREATE TABLE IF NOT EXISTS poll_votes (poll_id TEXT NOT NULL REFERENCES polls(id) ON DELETE CASCADE, option_id TEXT NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE, participant_id TEXT NOT NULL, participant_name TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (poll_id, participant_id, option_id))",
+      "CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_option ON poll_votes (poll_id, option_id)",
+      "CREATE INDEX IF NOT EXISTS idx_poll_votes_participant ON poll_votes (participant_id)",
+      "CREATE TABLE IF NOT EXISTS unlock_attempts (source_hash TEXT PRIMARY KEY NOT NULL, window_started_at INTEGER NOT NULL, failures INTEGER NOT NULL, locked_until INTEGER DEFAULT 0 NOT NULL)",
+    ];
+    // Each prepared statement contains exactly one SQL operation; batch applies
+    // the runtime bootstrap in order without multiline exec parsing.
+    schemaReady = db.batch(statements.map((statement) => db.prepare(statement))).then(() => undefined).catch((error) => {
+      schemaReady = null;
+      throw error;
+    });
+  }
+  return schemaReady;
+}
+
 export async function authenticated(request: Request) {
   const session = await readSession(request);
-  return session ? { session, db: getD1() } : null;
+  if (!session) return null;
+  const db = getD1();
+  await ensureCollabSchema(db);
+  return { session, db };
 }
