@@ -36,6 +36,8 @@ test("server-renders the Boston trip planner", async () => {
   assert.match(html, /new-balance-hq\.jpg/);
   assert.match(html, /NB Development Group/);
   assert.match(html, /APSA/);
+  assert.match(html, /class="travel-leg"/);
+  assert.match(html, /Logan Express→Prudential/);
   assert.doesNotMatch(html, /Your site is taking shape/);
   assert.doesNotMatch(html, /react-loading-skeleton/);
 });
@@ -54,4 +56,6 @@ test("serves key navigation and accessibility affordances", async () => {
   assert.match(html, /全行程地圖|地圖/);
   assert.match(html, /下一站/);
   assert.match(html, /共同筆記與投票/);
+  assert.match(html, /aria-pressed="true"/);
+  assert.match(html, /aria-current="date"/);
 });

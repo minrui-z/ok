@@ -20,7 +20,6 @@ import {
   List,
   Luggage,
   Map as MapIcon,
-  Menu,
   MessageSquareText,
   Moon,
   Navigation,
@@ -37,7 +36,6 @@ import {
   Utensils,
   Vote,
   Waves,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
@@ -51,6 +49,7 @@ import {
   type Activity,
   type ActivityCategory,
   type IconKey,
+  type TravelMode,
 } from "./trip-data";
 import { formatCountdown, getStopState, resolveDayActivities, type Intensity } from "./trip-utils";
 
@@ -76,6 +75,15 @@ const iconMap: Record<IconKey, LucideIcon> = {
 };
 
 const intensityLabels: Record<Intensity, string> = { relaxed: "輕鬆", standard: "標準", full: "完整" };
+const travelModeLabels: Record<TravelMode, string> = { walk: "步行", transit: "大眾運輸", train: "火車", drive: "開車", flight: "飛行", indoor: "航廈內" };
+const travelModeIcons: Record<TravelMode, LucideIcon> = { walk: Footprints, transit: BusFront, train: TrainFront, drive: Car, flight: Plane, indoor: Navigation };
+const navItems = [
+  { id: "overview", label: "首頁", icon: Globe2 },
+  { id: "itinerary", label: "行程", icon: CalendarDays },
+  { id: "drive", label: "租車", icon: Car },
+  { id: "collaboration", label: "共同區", icon: MessageSquareText },
+  { id: "essentials", label: "出發前", icon: Luggage },
+] as const;
 const allCategories = Object.keys(categoryLabels) as ActivityCategory[];
 const packingList = ["護照與 ESTA", "APSA 證件與投影片", "轉接器與充電線", "好走的鞋", "薄外套與雨具", "駕照與租車資料"];
 
@@ -94,7 +102,7 @@ function readStoredList(key: string) {
 export default function TripPlanner() {
   const [selectedDayId, setSelectedDayId] = useState("sep-02");
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("overview");
   const [intensity, setIntensity] = useState<Intensity>("standard");
   const [rainyDays, setRainyDays] = useState<Set<string>>(new Set());
   const [revealedDays, setRevealedDays] = useState<Set<string>>(new Set());
@@ -138,6 +146,21 @@ export default function TripPlanner() {
   useEffect(() => { if (settingsReady) localStorage.setItem("boston-completed-stops", JSON.stringify([...completedIds])); }, [completedIds, settingsReady]);
   useEffect(() => { if (settingsReady) localStorage.setItem("boston-packing", JSON.stringify([...packing])); }, [packing, settingsReady]);
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target.id) setActiveSection(visible.target.id);
+      },
+      { rootMargin: "-24% 0px -62%", threshold: [0, 0.15, 0.4] },
+    );
+    navItems.forEach(({ id }) => {
+      const section = document.getElementById(id);
+      if (section) observer.observe(section);
+    });
+    return () => observer.disconnect();
+  }, []);
+
   const selectedDay = tripDays.find((day) => day.id === selectedDayId) ?? tripDays[0];
   const resolved = useMemo(
     () => resolveDayActivities(selectedDay, intensity, rainyDays.has(selectedDay.id)),
@@ -153,7 +176,6 @@ export default function TripPlanner() {
 
   const chooseDay = useCallback((dayId: string) => {
     setSelectedDayId(dayId);
-    setMenuOpen(false);
   }, []);
 
   function toggleRain() {
@@ -193,15 +215,13 @@ export default function TripPlanner() {
     <div className="site-shell">
       <a className="skip-link" href="#main-content">跳到主要內容</a>
       <header className="topbar glass-bar">
-        <a className="brand" href="#overview"><span>B</span><span><strong>Boston Field Notes</strong><small>SEP 01—12 · 2026</small></span></a>
+        <a className="brand" href="#overview"><span className="brand-mark">B</span><span><strong>Boston Field Notes</strong><small>SEP 01—12 · 2026</small></span></a>
         <nav className="desktop-nav" aria-label="主要導覽">
-          <a href="#itinerary">行程</a><a href="#drive">租車</a><a href="#collaboration">共同區</a><a href="#essentials">出發前</a>
+          {navItems.slice(1).map(({ id, label }) => <a key={id} className={activeSection === id ? "active" : ""} aria-current={activeSection === id ? "location" : undefined} href={`#${id}`}>{label}</a>)}
         </nav>
         <div className="topbar-actions">
-          <button className="icon-button" aria-label={theme === "light" ? "切換深色模式" : "切換淺色模式"} onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}>{theme === "light" ? <Moon size={19} /> : <Sun size={19} />}</button>
-          <button className="icon-button menu-button" aria-label="開啟選單" onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
+          <button className="icon-button" aria-label={theme === "light" ? "切換深色模式" : "切換淺色模式"} aria-pressed={theme === "dark"} onClick={() => setTheme((current) => current === "light" ? "dark" : "light")}>{theme === "light" ? <Moon size={19} /> : <Sun size={19} />}</button>
         </div>
-        {menuOpen && <nav className="mobile-menu glass-card" aria-label="行動版導覽"><a href="#itinerary" onClick={() => setMenuOpen(false)}>行程</a><a href="#drive" onClick={() => setMenuOpen(false)}>租車</a><a href="#collaboration" onClick={() => setMenuOpen(false)}>共同區</a><a href="#essentials" onClick={() => setMenuOpen(false)}>出發前</a></nav>}
       </header>
 
       <main id="main-content">
@@ -236,16 +256,16 @@ export default function TripPlanner() {
           </section>
 
           <div className="itinerary-controls glass-card">
-            <div className="control-group"><span>行程強度</span><div className="segmented">{(["relaxed", "standard", "full"] as Intensity[]).map((value) => <button key={value} className={intensity === value ? "active" : ""} onClick={() => setIntensity(value)}>{intensityLabels[value]}</button>)}</div></div>
-            <button className={`weather-toggle ${rainyDays.has(selectedDay.id) ? "active" : ""}`} onClick={toggleRain}><CloudRain size={18} />{selectedDay.date} 雨天</button>
-            <div className="segmented view-toggle"><button className={view === "list" ? "active" : ""} onClick={() => setView("list")}><List size={17} />列表</button><button className={view === "map" ? "active" : ""} onClick={() => setView("map")}><MapIcon size={17} />地圖</button></div>
+            <div className="control-group"><span>行程強度</span><div className="segmented">{(["relaxed", "standard", "full"] as Intensity[]).map((value) => <button key={value} className={intensity === value ? "active" : ""} aria-pressed={intensity === value} onClick={() => setIntensity(value)}>{intensityLabels[value]}</button>)}</div></div>
+            <button className={`weather-toggle ${rainyDays.has(selectedDay.id) ? "active" : ""}`} aria-pressed={rainyDays.has(selectedDay.id)} onClick={toggleRain}><CloudRain size={18} />{selectedDay.date} 雨天</button>
+            <div className="segmented view-toggle"><button className={view === "list" ? "active" : ""} aria-pressed={view === "list"} onClick={() => setView("list")}><List size={17} />列表</button><button className={view === "map" ? "active" : ""} aria-pressed={view === "map"} onClick={() => setView("map")}><MapIcon size={17} />地圖</button></div>
           </div>
 
-          <div className="day-picker" aria-label="選擇日期">{tripDays.map((day) => <button key={day.id} className={`day-chip ${day.id === selectedDay.id ? "active" : ""}`} onClick={() => chooseDay(day.id)} style={{ "--day-color": day.color } as React.CSSProperties}><span>{day.weekday}</span><strong>{day.date}</strong></button>)}</div>
+          <div className="day-picker" aria-label="選擇日期">{tripDays.map((day) => <button key={day.id} className={`day-chip ${day.id === selectedDay.id ? "active" : ""}`} aria-pressed={day.id === selectedDay.id} aria-current={day.id === selectedDay.id ? "date" : undefined} onClick={() => chooseDay(day.id)} style={{ "--day-color": day.color } as React.CSSProperties}><span>{day.weekday}</span><strong>{day.date}</strong></button>)}</div>
 
           {view === "map" ? (
             <div className="map-panel glass-card">
-              <div className="map-toolbar"><div className="segmented"><button className={!mapAllDays ? "active" : ""} onClick={() => setMapAllDays(false)}>目前日期</button><button className={mapAllDays ? "active" : ""} onClick={() => setMapAllDays(true)}>全部日期</button></div><div className="category-filters">{allCategories.map((category) => <label key={category} className={mapCategories.has(category) ? "active" : ""}><input type="checkbox" checked={mapCategories.has(category)} onChange={() => setMapCategories((current) => { const next = new Set(current); if (next.has(category)) next.delete(category); else next.add(category); return next; })} />{categoryLabels[category]}</label>)}</div></div>
+              <div className="map-toolbar"><div className="segmented"><button className={!mapAllDays ? "active" : ""} aria-pressed={!mapAllDays} onClick={() => setMapAllDays(false)}>目前日期</button><button className={mapAllDays ? "active" : ""} aria-pressed={mapAllDays} onClick={() => setMapAllDays(true)}>全部日期</button></div><div className="category-filters" aria-label="地圖分類">{allCategories.map((category) => <label key={category} className={mapCategories.has(category) ? "active" : ""}><input type="checkbox" checked={mapCategories.has(category)} onChange={() => setMapCategories((current) => { const next = new Set(current); if (next.has(category)) next.delete(category); else next.add(category); return next; })} />{categoryLabels[category]}</label>)}</div></div>
               <TripMap days={tripDays} selectedDayId={selectedDay.id} allDays={mapAllDays} categories={mapCategories} onSelectDay={chooseDay} />
               <div className="map-legend">{(mapAllDays ? tripDays : [selectedDay]).map((day) => <span key={day.id}><i style={{ background: day.color }} />{day.date}</span>)}</div>
             </div>
@@ -255,10 +275,24 @@ export default function TripPlanner() {
               <div>
                 <ol className="timeline">{activities.map((activity, index) => {
                   const Icon = iconMap[activity.icon];
-                  return <li className="timeline-item" key={activity.id}><time className="timeline-time">{activity.timeLabel}</time><span className="timeline-node"><Icon size={16} /></span>{index < activities.length - 1 && <span className="timeline-rail" />}<article className={`activity-card glass-card ${activity.photo ? "has-photo" : ""}`}>
-                    <div className="activity-content">{activity.photo && <a className="activity-photo" href={activity.photo.source} target="_blank" rel="noreferrer"><Image src={activity.photo.src} alt={activity.photo.alt} width={288} height={176} sizes="(max-width: 640px) 100vw, 144px" loading="lazy" /><small>{activity.photo.credit}</small></a>}<div><span className="activity-category">{categoryLabels[activity.category]} · 約 {activity.durationMin || "—"} 分</span><h4>{activity.title}</h4><p>{activity.detail}</p></div></div>
-                    <div className="activity-links">{activity.coordinates && <a href={mapUrl(activity)} target="_blank" rel="noreferrer" aria-label={`導航到 ${activity.title}`}><Navigation size={17} /></a>}{activity.officialUrl && <a href={activity.officialUrl} target="_blank" rel="noreferrer">{activity.officialLabel}<ExternalLink size={14} /></a>}</div>
-                  </article></li>;
+                  const leg = activity.travelFromPrevious;
+                  const TravelIcon = leg ? travelModeIcons[leg.mode] : null;
+                  return <li className="timeline-item" key={activity.id}>
+                    <time className="timeline-time">{activity.timeLabel}</time>
+                    <span className="timeline-node"><Icon size={16} /></span>
+                    {index < activities.length - 1 && <span className="timeline-rail" />}
+                    <div className="timeline-entry">
+                      {leg && TravelIcon && <div className="travel-leg" aria-label={`前往 ${activity.title} 的交通`}>
+                        <span className="travel-leg-icon"><TravelIcon size={16} /></span>
+                        <div className="travel-leg-copy"><span>{travelModeLabels[leg.mode]} · 約 {leg.minutes} 分</span><strong>{leg.summary}</strong>{leg.note && <small>{leg.note}</small>}</div>
+                        <b>緩衝 {leg.bufferMin} 分</b>
+                      </div>}
+                      <article className={`activity-card glass-card ${activity.photo ? "has-photo" : ""}`}>
+                        <div className="activity-content">{activity.photo && <a className="activity-photo" href={activity.photo.source} target="_blank" rel="noreferrer"><Image src={activity.photo.src} alt={activity.photo.alt} width={288} height={176} sizes="(max-width: 640px) 100vw, 144px" loading="lazy" /><small>{activity.photo.credit}</small></a>}<div><span className="activity-category">{categoryLabels[activity.category]} · 約 {activity.durationMin || "—"} 分</span><h4>{activity.title}</h4><p>{activity.detail}</p></div></div>
+                        <div className="activity-links">{activity.coordinates && <a href={mapUrl(activity)} target="_blank" rel="noreferrer" aria-label={`導航到 ${activity.title}`}><Navigation size={17} /></a>}{activity.officialUrl && <a href={activity.officialUrl} target="_blank" rel="noreferrer">{activity.officialLabel}<ExternalLink size={14} /></a>}</div>
+                      </article>
+                    </div>
+                  </li>;
                 })}</ol>
                 {resolved.hidden.length > 0 && !revealedDays.has(selectedDay.id) && <button className="reveal-button" onClick={() => setRevealedDays((current) => new Set(current).add(selectedDay.id))}>顯示另外 {resolved.hidden.length} 項</button>}
               </div>
@@ -286,7 +320,7 @@ export default function TripPlanner() {
       </main>
 
       <footer><BookOpen size={17} /><span>Boston Field Notes · 2026</span><span>景點、球賽與交通時間請在出發前再次確認</span></footer>
-      <nav className="bottom-nav glass-bar" aria-label="行動版主要導覽"><a href="#overview"><Globe2 size={18} /><span>首頁</span></a><a href="#itinerary"><CalendarDays size={18} /><span>行程</span></a><a href="#drive"><Car size={18} /><span>租車</span></a><a href="#collaboration"><MessageSquareText size={18} /><span>共同區</span></a><a href="#essentials"><Luggage size={18} /><span>出發前</span></a></nav>
+      <nav className="bottom-nav glass-bar" aria-label="行動版主要導覽">{navItems.map(({ id, label, icon: NavIcon }) => <a key={id} className={activeSection === id ? "active" : ""} aria-current={activeSection === id ? "location" : undefined} href={`#${id}`}><NavIcon size={18} /><span>{label}</span></a>)}</nav>
     </div>
   );
 }

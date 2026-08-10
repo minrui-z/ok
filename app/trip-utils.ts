@@ -28,6 +28,7 @@ export function resolveDayActivities(
       start: activity.start,
       timezone: activity.timezone,
       durationMin: activity.durationMin,
+      travelFromPrevious: activity.rainAlternative.travelFromPrevious ?? activity.travelFromPrevious,
     } satisfies Activity;
   });
 
