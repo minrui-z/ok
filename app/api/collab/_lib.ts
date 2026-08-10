@@ -133,6 +133,23 @@ export function scopeValue(scope: unknown, dayId: unknown) {
   return null;
 }
 
+const expenseCategories = new Set(["transport", "rental", "parking", "food", "ticket", "other"]);
+const expenseCurrencies = new Set(["USD", "TWD"]);
+
+export function expenseValue(body: Record<string, unknown> | null) {
+  const description = textValue(body?.description, 120);
+  const category = typeof body?.category === "string" && expenseCategories.has(body.category) ? body.category : null;
+  const currency = typeof body?.currency === "string" && expenseCurrencies.has(body.currency) ? body.currency : null;
+  const paidBy = textValue(body?.paidBy, 30);
+  const dayId = body?.dayId === null || body?.dayId === "" ? null : textValue(body?.dayId, 24);
+  const amount = typeof body?.amount === "number" ? body.amount : Number(body?.amount);
+  const amountCents = Math.round(amount * 100);
+  const rawParticipants = Array.isArray(body?.participants) ? body.participants : [];
+  const participants = [...new Set(rawParticipants.map((item) => textValue(item, 30)).filter((item): item is string => Boolean(item)))];
+  if (!description || !category || !currency || !paidBy || !Number.isFinite(amountCents) || amountCents <= 0 || amountCents > 100_000_000 || participants.length < 1 || participants.length > 20) return null;
+  return { description, category, currency, paidBy, dayId, amountCents, participants };
+}
+
 export function json(data: unknown, status = 200, headers?: HeadersInit) {
   return Response.json(data, { status, headers: { "cache-control": "no-store", ...headers } });
 }
@@ -159,6 +176,9 @@ export function ensureCollabSchema(db: D1Database) {
       "CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_option ON poll_votes (poll_id, option_id)",
       "CREATE INDEX IF NOT EXISTS idx_poll_votes_participant ON poll_votes (participant_id)",
       "CREATE TABLE IF NOT EXISTS unlock_attempts (source_hash TEXT PRIMARY KEY NOT NULL, window_started_at INTEGER NOT NULL, failures INTEGER NOT NULL, locked_until INTEGER DEFAULT 0 NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS expenses (id TEXT PRIMARY KEY NOT NULL, day_id TEXT, description TEXT NOT NULL, category TEXT NOT NULL, amount_cents INTEGER NOT NULL, currency TEXT NOT NULL, paid_by TEXT NOT NULL, participants_json TEXT NOT NULL, author_id TEXT NOT NULL, author_name TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+      "CREATE INDEX IF NOT EXISTS idx_expenses_day_updated ON expenses (day_id, updated_at)",
+      "CREATE INDEX IF NOT EXISTS idx_expenses_author ON expenses (author_id)",
     ];
     // Each prepared statement contains exactly one SQL operation; batch applies
     // the runtime bootstrap in order without multiline exec parsing.

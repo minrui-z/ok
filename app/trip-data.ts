@@ -103,6 +103,20 @@ export type RestaurantGroup = {
   restaurants: Restaurant[];
 };
 
+export type BookingKind = "flight" | "conference" | "ticket" | "restaurant" | "rental";
+
+export type BookingItem = {
+  id: string;
+  title: string;
+  kind: BookingKind;
+  forDate: string;
+  recommendedBy: string;
+  dayId: string;
+  detail: string;
+  url: string;
+  actionLabel: string;
+};
+
 const mapPhoto = (name: string, alt: string, credit: string, source: string): PlacePhoto => ({
   src: `/places/${name}`,
   alt,
@@ -338,6 +352,19 @@ export const restaurantGroups: RestaurantGroup[] = [
       { id: "eataly-return", name: "Eataly Boston", area: "Prudential", cuisine: "義大利料理", price: "$$", reason: "與飯店相連，下雨或拖行李都方便。", address: "800 Boylston St, Boston", officialUrl: "https://www.eataly.com/us_en/stores/boston", reservationLabel: "餐廳資訊" },
     ],
   },
+];
+
+// These are planning deadlines, not vendor-imposed cut-offs. Keeping that
+// distinction explicit prevents the checklist from presenting estimates as facts.
+export const bookingItems: BookingItem[] = [
+  { id: "flights", title: "航班座位與托運確認", kind: "flight", forDate: "9/1、9/10", recommendedBy: "2026-08-29", dayId: "sep-01", detail: "把 TPE—SEA—BOS 兩段去回程放進航空公司 App，確認座位與行李規則。", url: "https://www.portseattle.org/sea-tac", actionLabel: "SEA 機場" },
+  { id: "apsa", title: "APSA 報到與發表資料", kind: "conference", forDate: "9/4、9/5", recommendedBy: "2026-08-20", dayId: "sep-04", detail: "確認兩場的房間、時間、註冊與投影片備份；確切時間補進行程後才能完整檢查衝突。", url: "https://connect.apsanet.org/apsa2026/", actionLabel: "APSA 2026" },
+  { id: "gardner", title: "Gardner Museum 定時票", kind: "ticket", forDate: "9/4 14:30", recommendedBy: "2026-08-20", dayId: "sep-04", detail: "目前行程預留兩小時，訂票後把票券存到手機錢包或離線資料夾。", url: "https://www.gardnermuseum.org/visit", actionLabel: "門票" },
+  { id: "krasi", title: "Krasi 慶祝晚餐", kind: "restaurant", forDate: "9/5 19:00", recommendedBy: "2026-08-20", dayId: "sep-05", detail: "首選訂不到時，直接從 Back Bay 候補清單換一間。", url: "https://www.krasi-boston.com/reservations", actionLabel: "訂位" },
+  { id: "salem-lunch", title: "Salem 週日午餐", kind: "restaurant", forDate: "9/6 12:30", recommendedBy: "2026-08-28", dayId: "sep-06", detail: "Turner’s 或 Ledger 擇一；用餐結束時間要能接上 14:00 的行程。", url: "https://www.turners-seafood.com/locations/salem/", actionLabel: "首選餐廳" },
+  { id: "red-sox", title: "Red Sox vs Angels", kind: "ticket", forDate: "9/7 13:35", recommendedBy: "2026-08-20", dayId: "sep-07", detail: "MLB 官方賽程目前列為 Fenway Park 13:35 開賽；時間仍可能調整。", url: "https://www.mlb.com/redsox/schedule/2026-09", actionLabel: "官方賽程" },
+  { id: "rental", title: "租車兩天", kind: "rental", forDate: "9/8—9/9", recommendedBy: "2026-08-15", dayId: "sep-08", detail: "Back Bay 取還車；比較異地還車、保險、ETC 與停車費後再下訂。", url: "https://www.google.com/maps/search/?api=1&query=car+rental+Back+Bay+Boston", actionLabel: "找取車點" },
+  { id: "breakers", title: "The Breakers 定時票", kind: "ticket", forDate: "9/8 10:45", recommendedBy: "2026-08-25", dayId: "sep-08", detail: "若預報下雨，這張票仍保留；Marble House 可作第二個室內停留。", url: "https://www.newportmansions.org/plan-a-visit/", actionLabel: "門票" },
 ];
 
 export const categoryLabels: Record<ActivityCategory, string> = {

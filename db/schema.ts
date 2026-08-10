@@ -58,3 +58,21 @@ export const unlockAttempts = sqliteTable("unlock_attempts", {
   failures: integer("failures").notNull(),
   lockedUntil: integer("locked_until").notNull().default(0),
 });
+
+export const expenses = sqliteTable("expenses", {
+  id: text("id").primaryKey(),
+  dayId: text("day_id"),
+  description: text("description").notNull(),
+  category: text("category", { enum: ["transport", "rental", "parking", "food", "ticket", "other"] }).notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency", { enum: ["USD", "TWD"] }).notNull(),
+  paidBy: text("paid_by").notNull(),
+  participantsJson: text("participants_json").notNull(),
+  authorId: text("author_id").notNull(),
+  authorName: text("author_name").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [
+  index("idx_expenses_day_updated").on(table.dayId, table.updatedAt),
+  index("idx_expenses_author").on(table.authorId),
+]);

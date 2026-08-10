@@ -13,7 +13,7 @@ export function resolveDayActivities(
   day: TripDay,
   intensity: Intensity,
   rainy: boolean,
-): { visible: Activity[]; hidden: Activity[] } {
+): { visible: Activity[]; hidden: Activity[]; all: Activity[] } {
   // Rain replacements are resolved before intensity so an optional outdoor stop
   // cannot accidentally promote its indoor fallback into a lighter itinerary.
   const resolved = day.activities.map((activity) => {
@@ -36,7 +36,55 @@ export function resolveDayActivities(
   return {
     visible: resolved.filter((activity) => allowed.has(activity.priority)),
     hidden: resolved.filter((activity) => !allowed.has(activity.priority)),
+    all: resolved,
   };
+}
+
+export type ScheduleCheck = {
+  id: string;
+  from: Activity;
+  to: Activity;
+  availableMin: number;
+  requiredMin: number;
+  slackMin: number;
+  state: "conflict" | "tight" | "clear";
+};
+
+/**
+ * Checks adjacent, explicitly timed stops. Vague APSA blocks are intentionally
+ * omitted until their real start time is known.
+ */
+export function checkSchedule(activities: Activity[]): ScheduleCheck[] {
+  const timed = activities.filter((activity) => activity.start && !activity.vague);
+  const checks: ScheduleCheck[] = [];
+
+  for (let index = 1; index < timed.length; index += 1) {
+    const from = timed[index - 1];
+    const to = timed[index];
+    const availableMin = Math.round((new Date(to.start!).getTime() - new Date(from.start!).getTime()) / 60_000);
+    const requiredMin = from.durationMin + (to.travelFromPrevious?.minutes ?? 0) + (to.travelFromPrevious?.bufferMin ?? 0);
+    const slackMin = availableMin - requiredMin;
+    checks.push({
+      id: `${from.id}--${to.id}`,
+      from,
+      to,
+      availableMin,
+      requiredMin,
+      slackMin,
+      state: slackMin < 0 ? "conflict" : slackMin < 15 ? "tight" : "clear",
+    });
+  }
+
+  return checks;
+}
+
+export function bostonIsoDate(now: Date) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
 }
 
 export type StopState =
@@ -81,12 +129,7 @@ export function getStopState(
     }
   }
 
-  const bostonDate = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
+  const bostonDate = bostonIsoDate(now);
 
   const vagueToday = all.find(
     (activity) => activity.vague && activity.isoDate === bostonDate && !completedIds.has(activity.id),

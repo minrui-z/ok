@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, LockKeyhole, LogOut, MessageSquareText, Plus, RefreshCw, Trash2, Vote, X } from "lucide-react";
+import { Check, CircleDollarSign, LockKeyhole, LogOut, MessageSquareText, Pencil, Plus, RefreshCw, Trash2, Vote, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TripDay } from "../trip-data";
 
@@ -29,6 +29,25 @@ type Poll = {
   myOptionIds: string[];
 };
 
+type Expense = {
+  id: string;
+  dayId: string | null;
+  description: string;
+  category: "transport" | "rental" | "parking" | "food" | "ticket" | "other";
+  amountCents: number;
+  currency: "USD" | "TWD";
+  paidBy: string;
+  participants: string[];
+  authorId: string;
+  authorName: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+const expenseCategoryLabels: Record<Expense["category"], string> = {
+  transport: "交通", rental: "租車", parking: "停車", food: "餐飲", ticket: "門票", other: "其他",
+};
+
 export type PollSeed = { key: number; question: string; options: string[]; dayId: string } | null;
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
@@ -47,8 +66,9 @@ export function CollaborationPanel({ days, selectedDayId, pollSeed }: { days: Tr
   const [pin, setPin] = useState("");
   const [notes, setNotes] = useState<Note[]>([]);
   const [polls, setPolls] = useState<Poll[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [participantId, setParticipantId] = useState("");
-  const [tab, setTab] = useState<"notes" | "polls">(pollSeed ? "polls" : "notes");
+  const [tab, setTab] = useState<"notes" | "polls" | "expenses">(pollSeed ? "polls" : "notes");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -62,16 +82,26 @@ export function CollaborationPanel({ days, selectedDayId, pollSeed }: { days: Tr
   const [pollScope, setPollScope] = useState<"trip" | "day">("day");
   const [pollDayId, setPollDayId] = useState(pollSeed?.dayId ?? selectedDayId);
   const [pollOptions, setPollOptions] = useState(pollSeed?.options.slice(0, 8) ?? ["", ""]);
+  const [expenseDayId, setExpenseDayId] = useState(selectedDayId);
+  const [expenseDescription, setExpenseDescription] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState<Expense["category"]>("food");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCurrency, setExpenseCurrency] = useState<Expense["currency"]>("USD");
+  const [expensePaidBy, setExpensePaidBy] = useState("");
+  const [expenseParticipants, setExpenseParticipants] = useState("");
+  const [editingExpense, setEditingExpense] = useState<string | null>(null);
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [noteData, pollData] = await Promise.all([
+      const [noteData, pollData, expenseData] = await Promise.all([
         api<{ notes: Note[]; participantId: string }>("/api/collab/notes"),
         api<{ polls: Poll[]; participantId: string }>("/api/collab/polls"),
+        api<{ expenses: Expense[]; participantId: string }>("/api/collab/expenses"),
       ]);
       setNotes(noteData.notes);
       setPolls(pollData.polls);
+      setExpenses(expenseData.expenses);
       setParticipantId(noteData.participantId);
       setUnlocked(true);
       setError("");
@@ -115,6 +145,19 @@ export function CollaborationPanel({ days, selectedDayId, pollSeed }: { days: Tr
     () => polls.filter((poll) => poll.scope === "trip" || poll.dayId === selectedDayId),
     [polls, selectedDayId],
   );
+  const balances = useMemo(() => {
+    const result: Record<string, Record<string, number>> = {};
+    for (const expense of expenses) {
+      const names = [...new Set(expense.participants)];
+      if (!names.length) continue;
+      const ledger = result[expense.currency] ??= {};
+      const base = Math.floor(expense.amountCents / names.length);
+      const remainder = expense.amountCents - base * names.length;
+      names.forEach((name, index) => { ledger[name] = (ledger[name] ?? 0) - base - (index < remainder ? 1 : 0); });
+      ledger[expense.paidBy] = (ledger[expense.paidBy] ?? 0) + expense.amountCents;
+    }
+    return result;
+  }, [expenses]);
 
   async function unlock(event: React.FormEvent) {
     event.preventDefault();
@@ -136,6 +179,7 @@ export function CollaborationPanel({ days, selectedDayId, pollSeed }: { days: Tr
     setUnlocked(false);
     setNotes([]);
     setPolls([]);
+    setExpenses([]);
     setParticipantId("");
   }
 
@@ -209,6 +253,48 @@ export function CollaborationPanel({ days, selectedDayId, pollSeed }: { days: Tr
     await refresh(true);
   }
 
+  function resetExpenseForm() {
+    setEditingExpense(null);
+    setExpenseDescription("");
+    setExpenseAmount("");
+    setExpenseParticipants("");
+    setExpensePaidBy(nickname);
+  }
+
+  async function saveExpense(event: React.FormEvent) {
+    event.preventDefault();
+    const participants = expenseParticipants.split(/[,，、\n]/).map((item) => item.trim()).filter(Boolean);
+    setBusy(true);
+    setError("");
+    try {
+      const body = JSON.stringify({ dayId: expenseDayId || null, description: expenseDescription, category: expenseCategory, amount: Number(expenseAmount), currency: expenseCurrency, paidBy: expensePaidBy, participants });
+      await api(editingExpense ? `/api/collab/expenses/${editingExpense}` : "/api/collab/expenses", { method: editingExpense ? "PATCH" : "POST", body });
+      resetExpenseForm();
+      await refresh(true);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "費用沒有儲存。" ); }
+    finally { setBusy(false); }
+  }
+
+  function beginExpenseEdit(expense: Expense) {
+    setEditingExpense(expense.id);
+    setExpenseDayId(expense.dayId ?? "");
+    setExpenseDescription(expense.description);
+    setExpenseCategory(expense.category);
+    setExpenseAmount((expense.amountCents / 100).toFixed(2));
+    setExpenseCurrency(expense.currency);
+    setExpensePaidBy(expense.paidBy);
+    setExpenseParticipants(expense.participants.join("、"));
+    document.getElementById("expense-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  async function deleteExpense(id: string) {
+    if (!window.confirm("要刪除這筆費用嗎？")) return;
+    try {
+      await api(`/api/collab/expenses/${id}`, { method: "DELETE" });
+      await refresh(true);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "費用沒有刪除。" ); }
+  }
+
   if (loading && !unlocked) {
     return <div className="collab-loading" role="status"><RefreshCw size={18} className="spin" /> 讀取共同區</div>;
   }
@@ -237,6 +323,7 @@ export function CollaborationPanel({ days, selectedDayId, pollSeed }: { days: Tr
         <div className="segmented" aria-label="共同區內容">
           <button className={tab === "notes" ? "active" : ""} onClick={() => setTab("notes")}><MessageSquareText size={17} />筆記</button>
           <button className={tab === "polls" ? "active" : ""} onClick={() => setTab("polls")}><Vote size={17} />投票</button>
+          <button className={tab === "expenses" ? "active" : ""} onClick={() => setTab("expenses")}><CircleDollarSign size={17} />費用</button>
         </div>
         <span>{nickname}</span>
         <button className="text-button" onClick={() => void logout()}><LogOut size={16} />離開</button>
@@ -271,7 +358,7 @@ export function CollaborationPanel({ days, selectedDayId, pollSeed }: { days: Tr
             ))}
           </div>
         </div>
-      ) : (
+      ) : tab === "polls" ? (
         <div className="collab-grid">
           <form className="collab-compose glass-card" onSubmit={createPoll}>
             <h3>建立投票</h3>
@@ -302,6 +389,37 @@ export function CollaborationPanel({ days, selectedDayId, pollSeed }: { days: Tr
                 <div className="poll-footer"><span>{poll.authorName} 建立 · {total} 人投票</span>{poll.authorId === participantId && <div className="inline-actions">{poll.status === "open" && <button onClick={() => void closePoll(poll.id)}>關閉</button>}<button className="danger" onClick={() => void deletePoll(poll.id)}><Trash2 size={15} />刪除</button></div>}</div>
               </article>;
             })}
+          </div>
+        </div>
+      ) : (
+        <div className="expense-layout">
+          <div className="balance-strip glass-card" aria-label="共同費用結算">
+            {Object.keys(balances).length === 0 ? <p>還沒有共同費用。新增後會依幣別計算應收與應付。</p> : Object.entries(balances).map(([currency, ledger]) => <section key={currency}><strong>{currency}</strong><div>{Object.entries(ledger).sort((a, b) => b[1] - a[1]).map(([name, cents]) => <span key={name}><b>{name}</b>{cents === 0 ? "已平衡" : cents > 0 ? `應收 ${(cents / 100).toLocaleString("zh-TW", { minimumFractionDigits: 2 })}` : `應付 ${(-cents / 100).toLocaleString("zh-TW", { minimumFractionDigits: 2 })}`}</span>)}</div></section>)}
+          </div>
+          <div className="collab-grid">
+            <form id="expense-form" className="collab-compose glass-card" onSubmit={saveExpense}>
+              <h3>{editingExpense ? "修改費用" : "新增費用"}</h3>
+              <label className="field-label">品項<input value={expenseDescription} onChange={(event) => setExpenseDescription(event.target.value)} maxLength={120} required /></label>
+              <div className="expense-field-row">
+                <label className="field-label">分類<select value={expenseCategory} onChange={(event) => setExpenseCategory(event.target.value as Expense["category"])}>{Object.entries(expenseCategoryLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                <label className="field-label">日期<select value={expenseDayId} onChange={(event) => setExpenseDayId(event.target.value)}><option value="">全旅程</option>{days.map((day) => <option key={day.id} value={day.id}>{day.date} {day.title}</option>)}</select></label>
+              </div>
+              <div className="expense-field-row amount-row">
+                <label className="field-label">幣別<select value={expenseCurrency} onChange={(event) => setExpenseCurrency(event.target.value as Expense["currency"])}><option value="USD">USD</option><option value="TWD">TWD</option></select></label>
+                <label className="field-label">金額<input type="number" inputMode="decimal" min="0.01" max="1000000" step="0.01" value={expenseAmount} onChange={(event) => setExpenseAmount(event.target.value)} required /></label>
+              </div>
+              <label className="field-label">付款人<input value={expensePaidBy} onChange={(event) => setExpensePaidBy(event.target.value)} maxLength={30} required /></label>
+              <label className="field-label">分攤者<input value={expenseParticipants} onChange={(event) => setExpenseParticipants(event.target.value)} maxLength={620} placeholder="用逗號分隔暱稱" required /><small>每筆均分；請把付款人也填進去。</small></label>
+              <div className="compose-footer">{editingExpense && <button type="button" className="text-button" onClick={resetExpenseForm}>取消</button>}<button className="primary-button" disabled={busy}>{busy ? "儲存中…" : editingExpense ? "更新" : "加入"}</button></div>
+            </form>
+            <div className="collab-feed">
+              {expenses.length === 0 && <div className="empty-card glass-card">新增第一筆共同費用後，這裡會顯示分帳明細。</div>}
+              {expenses.map((expense) => <article className="expense-card glass-card" key={expense.id}>
+                <div className="expense-card-heading"><div><span>{expense.dayId ? days.find((day) => day.id === expense.dayId)?.date : "全旅程"} · {expenseCategoryLabels[expense.category]}</span><h3>{expense.description}</h3></div><strong>{expense.currency} {(expense.amountCents / 100).toLocaleString("zh-TW", { minimumFractionDigits: 2 })}</strong></div>
+                <p><b>{expense.paidBy}</b> 付款 · {expense.participants.join("、")} 均分</p>
+                <div className="poll-footer"><span>{expense.authorName} 記錄</span>{expense.authorId === participantId && <div className="inline-actions"><button onClick={() => beginExpenseEdit(expense)}><Pencil size={14} />修改</button><button className="danger" onClick={() => void deleteExpense(expense.id)}><Trash2 size={15} />刪除</button></div>}</div>
+              </article>)}
+            </div>
           </div>
         </div>
       )}

@@ -105,6 +105,26 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
     assert.equal((await request(`/api/collab/notes/${noteId}`, { method: "DELETE", cookie: friendCookie, body: null, ip: "203.0.113.30" })).status, 403);
   });
 
+  let expenseId;
+  await t.test("shared expenses support records, splits and edits", async () => {
+    const create = await request("/api/collab/expenses", { method: "POST", cookie: ownerCookie, body: { dayId: "sep-08", description: "租車", category: "rental", amount: 240.5, currency: "USD", paidBy: "Min", participants: ["Min", "Friend"] } });
+    assert.equal(create.status, 201);
+    expenseId = (await create.json()).id;
+    let list = await (await request("/api/collab/expenses", { cookie: ownerCookie })).json();
+    assert.equal(list.expenses[0].amountCents, 24050);
+    assert.deepEqual(list.expenses[0].participants, ["Min", "Friend"]);
+    assert.equal((await request(`/api/collab/expenses/${expenseId}`, { method: "PATCH", cookie: ownerCookie, body: { dayId: "sep-08", description: "租車與 ETC", category: "rental", amount: 255.75, currency: "USD", paidBy: "Min", participants: ["Min", "Friend", "Alex"] } })).status, 200);
+    list = await (await request("/api/collab/expenses", { cookie: ownerCookie })).json();
+    assert.equal(list.expenses[0].amountCents, 25575);
+    assert.equal(list.expenses[0].participants.length, 3);
+    assert.equal((await request("/api/collab/expenses", { method: "POST", cookie: ownerCookie, body: { description: "錯誤金額", category: "food", amount: 0, currency: "USD", paidBy: "Min", participants: [] } })).status, 400);
+  });
+
+  await t.test("expense authors retain ownership", async () => {
+    assert.equal((await request(`/api/collab/expenses/${expenseId}`, { method: "DELETE", cookie: friendCookie, body: null, ip: "203.0.113.30" })).status, 403);
+    assert.equal((await request(`/api/collab/expenses/${expenseId}`, { method: "DELETE", cookie: ownerCookie, body: null })).status, 200);
+  });
+
   await t.test("single-choice votes can be changed", async () => {
     const create = await request("/api/collab/polls", { method: "POST", cookie: ownerCookie, body: { question: "晚餐吃哪間？", type: "single", scope: "day", dayId: "sep-05", options: ["Krasi", "Atlantic Fish"] } });
     assert.equal(create.status, 201);
