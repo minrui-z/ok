@@ -32,7 +32,7 @@ test("server-renders the Boston trip planner", async () => {
   assert.match(html, /<title>Boston 2026｜APSA 行程手冊<\/title>/i);
   assert.match(html, /Boston Field Notes/);
   assert.match(html, /Copley Place/);
-  assert.match(html, /New Balance 世界總部與全球旗艦店/);
+  assert.match(html, /New Balance 世界總部/);
   assert.match(html, /new-balance-hq\.jpg/);
   assert.match(html, /NB Development Group/);
   assert.match(html, /APSA/);
@@ -49,5 +49,9 @@ test("serves key navigation and accessibility affordances", async () => {
   assert.match(html, /aria-label="切換深色模式"/);
   assert.match(html, /href="#itinerary"/);
   assert.match(html, /href="#drive"/);
+  assert.match(html, /href="#collaboration"/);
   assert.match(html, /href="#essentials"/);
+  assert.match(html, /全行程地圖|地圖/);
+  assert.match(html, /下一站/);
+  assert.match(html, /共同筆記與投票/);
 });
