@@ -51,9 +51,9 @@ test("serves key navigation and accessibility affordances", async () => {
   assert.match(html, /aria-current="page"/);
   assert.match(html, /今天/);
   assert.match(html, /行程/);
-  assert.match(html, /預約/);
-  assert.match(html, /共同/);
+  assert.match(html, /地圖/);
   assert.match(html, /更多/);
   assert.match(html, /下一站/);
-  assert.match(html, /共同區/);
+  assert.match(html, /全行程地圖/);
+  assert.match(html, /預約與票券/);
 });

@@ -15,6 +15,13 @@
       "when": 1786395849910,
       "tag": "0001_mysterious_lenny_balinger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786487080757,
+      "tag": "0002_needy_maggott",
+      "breakpoints": true
     }
   ]
 }

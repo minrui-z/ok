@@ -3,7 +3,18 @@ import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://minrui-z.github.io/ok/"),
+  metadataBase: new URL("https://boston-apsa-2026.mingzran.chatgpt.site/"),
+  manifest: "/manifest.webmanifest",
+  applicationName: "Boston 2026 行程",
+  appleWebApp: {
+    capable: true,
+    title: "Boston 2026",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
   title: {
     default: "Boston 2026｜APSA 行程手冊",
     template: "%s｜Boston 2026",

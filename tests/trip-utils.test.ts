@@ -86,12 +86,18 @@ test("next-stop math compares explicit time zones by absolute time", () => {
   assert.equal(state.countdownMs, 10 * 60_000);
 });
 
-test("vague APSA times remain current until manually completed", () => {
+test("vague APSA times stay pending without eclipsing timed stops", () => {
   const now = new Date("2026-09-04T13:00:00Z");
   const pending = getStopState(now, tripDays, new Set());
   assert.equal(pending.phase, "active");
   if (pending.phase !== "active") return;
-  assert.equal(pending.current?.id, "sep04-prep");
+  assert.equal(pending.current, null);
+  assert.equal(pending.next?.id, "sep04-gardner");
+
+  const manuallySelected = getStopState(now, tripDays, new Set(), "sep04-prep");
+  assert.equal(manuallySelected.phase, "active");
+  if (manuallySelected.phase !== "active") return;
+  assert.equal(manuallySelected.current?.id, "sep04-prep");
 
   const completed = getStopState(now, tripDays, new Set(["sep04-prep", "sep04-talk"]));
   assert.equal(completed.phase, "active");

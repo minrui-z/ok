@@ -76,3 +76,29 @@ export const expenses = sqliteTable("expenses", {
   index("idx_expenses_day_updated").on(table.dayId, table.updatedAt),
   index("idx_expenses_author").on(table.authorId),
 ]);
+
+export const itineraryVersions = sqliteTable("itinerary_versions", {
+  tripId: text("trip_id").notNull(),
+  version: integer("version").notNull(),
+  schemaVersion: integer("schema_version").notNull().default(1),
+  snapshotJson: text("snapshot_json").notNull(),
+  action: text("action", {
+    enum: [
+      "seed",
+      "activity.create",
+      "activity.update",
+      "activity.move",
+      "activity.delete",
+      "day.update",
+      "version.restore",
+    ],
+  }).notNull(),
+  targetId: text("target_id"),
+  sourceVersion: integer("source_version"),
+  summary: text("summary").notNull(),
+  authorId: text("author_id"),
+  authorName: text("author_name").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.tripId, table.version] }),
+]);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { pbkdf2Sync } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
@@ -45,7 +46,9 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("api-test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
-  const migration = await readFile(new URL("../drizzle/0000_calm_malice.sql", import.meta.url), "utf8");
+  const migrationDirectory = fileURLToPath(new URL("../drizzle/", import.meta.url));
+  const migrationFiles = (await readdir(migrationDirectory)).filter((file) => /^\d+.*\.sql$/.test(file)).sort();
+  const migration = (await Promise.all(migrationFiles.map((file) => readFile(new URL(`../drizzle/${file}`, import.meta.url), "utf8")))).join("\n");
   const bindings = {
     DB: new TestD1(migration),
     COLLAB_PIN_HASH: pinHash("2468"),
@@ -54,8 +57,9 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
   };
   globalThis.__COLLAB_TEST_ENV = bindings;
   const context = { waitUntil() {}, passThroughOnException() {} };
-  const request = async (path, { method = "GET", body, cookie, ip = "203.0.113.10" } = {}) => {
-    const headers = new Headers({ origin: "https://trip.test", "cf-connecting-ip": ip });
+  const request = async (path, { method = "GET", body, cookie, ip = "203.0.113.10", origin = "https://trip.test" } = {}) => {
+    const headers = new Headers({ "cf-connecting-ip": ip });
+    if (origin) headers.set("origin", origin);
     if (body !== undefined) headers.set("content-type", "application/json");
     if (cookie) headers.set("cookie", cookie);
     return worker.fetch(new Request(`https://trip.test${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }), bindings, context);
@@ -63,6 +67,23 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
 
   await t.test("locked visitors cannot read", async () => {
     assert.equal((await request("/api/collab/notes")).status, 401);
+  });
+
+  let itineraryVersion = 1;
+  await t.test("the latest itinerary is public but its history and writes are locked", async () => {
+    const response = await request("/api/itinerary");
+    assert.equal(response.status, 200);
+    const itinerary = await response.json();
+    assert.equal(itinerary.version, 1);
+    assert.equal(itinerary.schemaVersion, 1);
+    assert.ok(itinerary.days.length >= 10);
+    assert.equal("authorId" in itinerary, false);
+    assert.equal("authorName" in itinerary, false);
+    assert.equal((await request("/api/collab/itinerary/history")).status, 401);
+    assert.equal((await request("/api/collab/itinerary", {
+      method: "PATCH",
+      body: { baseVersion: 1, operation: { type: "day.update", dayId: "sep-03", changes: { title: "不可修改" } } },
+    })).status, 401);
   });
 
   await t.test("unsupported PBKDF2 iteration counts fail closed", async () => {
@@ -103,6 +124,212 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
   const friendCookie = (secondUnlock.headers.get("set-cookie") ?? "").split(";")[0];
   await t.test("authors control their own notes", async () => {
     assert.equal((await request(`/api/collab/notes/${noteId}`, { method: "DELETE", cookie: friendCookie, body: null, ip: "203.0.113.30" })).status, 403);
+  });
+
+  let sharedActivityId;
+  await t.test("itinerary operations reject caller-supplied IDs and unsupported photo sources", async () => {
+    const invalid = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: ownerCookie,
+      body: {
+        baseVersion: itineraryVersion,
+        operation: {
+          type: "activity.create",
+          dayId: "sep-02",
+          activity: {
+            id: "caller-controlled",
+            timeLabel: "20:30",
+            timezone: "America/New_York",
+            title: "無效活動",
+            detail: "呼叫端不可指定 ID。",
+            icon: "food",
+            category: "food",
+            priority: "optional",
+            durationMin: 30,
+            photo: { src: "https://example.com/photo.jpg", alt: "photo", credit: "credit", source: "https://example.com/" },
+          },
+        },
+      },
+    });
+    assert.equal(invalid.status, 400);
+    const invalidPhoto = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: ownerCookie,
+      body: {
+        baseVersion: itineraryVersion,
+        operation: {
+          type: "activity.create",
+          dayId: "sep-02",
+          activity: {
+            timeLabel: "20:30",
+            timezone: "America/New_York",
+            title: "無效照片",
+            detail: "目前不支援外部照片。",
+            icon: "food",
+            category: "food",
+            priority: "optional",
+            durationMin: 30,
+            photo: { src: "https://example.com/photo.jpg", alt: "photo", credit: "credit", source: "https://example.com/" },
+          },
+        },
+      },
+    });
+    assert.equal(invalidPhoto.status, 400);
+    assert.equal((await (await request("/api/itinerary")).json()).version, itineraryVersion);
+  });
+
+  await t.test("all unlocked travelers can create, edit, move and update itinerary days", async () => {
+    const create = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: ownerCookie,
+      body: {
+        baseVersion: itineraryVersion,
+        operation: {
+          type: "activity.create",
+          dayId: "sep-02",
+          activity: {
+            timeLabel: "20:30",
+            start: "2026-09-02T20:30:00-04:00",
+            timezone: "America/New_York",
+            title: "同行者晚餐",
+            detail: "測試共同編輯的新增活動。",
+            icon: "food",
+            category: "food",
+            priority: "optional",
+            durationMin: 60,
+            coordinates: [42.35, -71.08],
+            place: "Back Bay",
+          },
+        },
+      },
+    });
+    assert.equal(create.status, 200);
+    let data = await create.json();
+    itineraryVersion = data.version;
+    sharedActivityId = data.change.targetId;
+    assert.equal(itineraryVersion, 2);
+    assert.match(sharedActivityId, /^[0-9a-f-]{36}$/);
+
+    const update = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: friendCookie,
+      ip: "203.0.113.30",
+      body: {
+        baseVersion: itineraryVersion,
+        operation: { type: "activity.update", activityId: sharedActivityId, changes: { title: "一起吃晚餐", durationMin: 75 } },
+      },
+    });
+    assert.equal(update.status, 200);
+    data = await update.json();
+    itineraryVersion = data.version;
+    assert.equal(itineraryVersion, 3);
+    assert.equal(data.days.flatMap((day) => day.activities).find((activity) => activity.id === sharedActivityId).title, "一起吃晚餐");
+
+    const move = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: ownerCookie,
+      body: {
+        baseVersion: itineraryVersion,
+        operation: { type: "activity.move", activityId: sharedActivityId, toDayId: "sep-03", toIndex: 0 },
+      },
+    });
+    assert.equal(move.status, 200);
+    data = await move.json();
+    itineraryVersion = data.version;
+    assert.equal(itineraryVersion, 4);
+    assert.equal(data.days.find((day) => day.id === "sep-03").activities[0].id, sharedActivityId);
+
+    const updateDay = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: friendCookie,
+      ip: "203.0.113.30",
+      body: {
+        baseVersion: itineraryVersion,
+        operation: { type: "day.update", dayId: "sep-03", changes: { note: "同行者共同確認過的安排。" } },
+      },
+    });
+    assert.equal(updateDay.status, 200);
+    data = await updateDay.json();
+    itineraryVersion = data.version;
+    assert.equal(itineraryVersion, 5);
+    assert.equal(data.days.find((day) => day.id === "sep-03").note, "同行者共同確認過的安排。");
+  });
+
+  await t.test("important deletion requires confirmation and version restore appends a new snapshot", async () => {
+    const rejected = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: ownerCookie,
+      body: { baseVersion: itineraryVersion, operation: { type: "activity.delete", activityId: "sep01-tpe" } },
+    });
+    assert.equal(rejected.status, 428);
+    assert.equal((await (await request("/api/itinerary")).json()).version, itineraryVersion);
+
+    const remove = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: ownerCookie,
+      body: { baseVersion: itineraryVersion, operation: { type: "activity.delete", activityId: "sep01-tpe", confirmImportant: true } },
+    });
+    assert.equal(remove.status, 200);
+    itineraryVersion = (await remove.json()).version;
+    assert.equal(itineraryVersion, 6);
+
+    const restore = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: friendCookie,
+      ip: "203.0.113.30",
+      body: { baseVersion: itineraryVersion, operation: { type: "version.restore", version: 5 } },
+    });
+    assert.equal(restore.status, 200);
+    const restored = await restore.json();
+    itineraryVersion = restored.version;
+    assert.equal(itineraryVersion, 7);
+    assert.equal(restored.change.sourceVersion, 5);
+    assert.ok(restored.days.flatMap((day) => day.activities).some((activity) => activity.id === "sep01-tpe"));
+  });
+
+  await t.test("ordinary deletion, same-origin checks and optimistic version conflicts are enforced", async () => {
+    const wrongOrigin = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: ownerCookie,
+      origin: "https://evil.test",
+      body: { baseVersion: itineraryVersion, operation: { type: "activity.delete", activityId: sharedActivityId } },
+    });
+    assert.equal(wrongOrigin.status, 403);
+
+    const remove = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: ownerCookie,
+      body: { baseVersion: itineraryVersion, operation: { type: "activity.delete", activityId: sharedActivityId } },
+    });
+    assert.equal(remove.status, 200);
+    itineraryVersion = (await remove.json()).version;
+    assert.equal(itineraryVersion, 8);
+
+    const stale = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: friendCookie,
+      ip: "203.0.113.30",
+      body: { baseVersion: 7, operation: { type: "day.update", dayId: "sep-03", changes: { title: "過期修改" } } },
+    });
+    assert.equal(stale.status, 409);
+    assert.equal((await stale.json()).currentVersion, 8);
+    assert.equal((await (await request("/api/itinerary")).json()).version, 8);
+  });
+
+  await t.test("history is append-only, attributed and never exposed by the public endpoint", async () => {
+    const historyResponse = await request("/api/collab/itinerary/history?limit=20", { cookie: ownerCookie });
+    assert.equal(historyResponse.status, 200);
+    const { history } = await historyResponse.json();
+    assert.deepEqual(history.map((item) => item.version), [8, 7, 6, 5, 4, 3, 2, 1]);
+    assert.equal(history.find((item) => item.version === 3).authorName, "Friend");
+    assert.equal(history.find((item) => item.version === 7).action, "version.restore");
+    assert.equal(history.find((item) => item.version === 7).sourceVersion, 5);
+
+    const publicItinerary = await (await request("/api/itinerary")).json();
+    assert.equal(publicItinerary.version, 8);
+    assert.equal("history" in publicItinerary, false);
+    assert.equal("authorName" in publicItinerary, false);
+    assert.equal("authorId" in publicItinerary, false);
   });
 
   let expenseId;

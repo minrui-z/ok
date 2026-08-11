@@ -1,5 +1,4 @@
 import type { Activity, ActivityCategory, ActivityPriority, TripDay } from "./trip-data";
-import { tripEnd, tripStart } from "./trip-data";
 
 export type Intensity = "relaxed" | "standard" | "full";
 
@@ -96,6 +95,20 @@ function flatten(days: TripDay[]) {
   return days.flatMap((day) => day.activities.map((activity) => ({ ...activity, dayId: day.id, isoDate: day.isoDate })));
 }
 
+function tripBounds(days: TripDay[]) {
+  const timed = flatten(days).flatMap((activity) => {
+    if (!activity.start) return [];
+    const start = new Date(activity.start).getTime();
+    if (!Number.isFinite(start)) return [];
+    return [{ start, end: start + Math.max(0, activity.durationMin) * 60_000 }];
+  });
+  if (!timed.length) return null;
+  return {
+    start: Math.min(...timed.map((item) => item.start)),
+    end: Math.max(...timed.map((item) => item.end)),
+  };
+}
+
 export function getStopState(
   now: Date,
   days: TripDay[],
@@ -104,14 +117,15 @@ export function getStopState(
 ): StopState {
   const all = flatten(days);
   const nowMs = now.getTime();
+  const bounds = tripBounds(days);
 
-  if (nowMs < new Date(tripStart).getTime()) {
+  if (bounds && nowMs < bounds.start) {
     const first = all.find((activity) => activity.start);
     if (!first) return { phase: "complete", current: null, next: null, countdownMs: null };
     return { phase: "before", current: null, next: first, countdownMs: new Date(first.start!).getTime() - nowMs };
   }
 
-  if (nowMs > new Date(tripEnd).getTime()) {
+  if (bounds && nowMs > bounds.end) {
     return { phase: "complete", current: null, next: null, countdownMs: null };
   }
 
@@ -129,16 +143,6 @@ export function getStopState(
     }
   }
 
-  const bostonDate = bostonIsoDate(now);
-
-  const vagueToday = all.find(
-    (activity) => activity.vague && activity.isoDate === bostonDate && !completedIds.has(activity.id),
-  );
-  if (vagueToday) {
-    const next = all.slice(all.findIndex((item) => item.id === vagueToday.id) + 1).find((item) => !completedIds.has(item.id)) ?? null;
-    return { phase: "active", current: vagueToday, next, countdownMs: next?.start ? Math.max(0, new Date(next.start).getTime() - nowMs) : null };
-  }
-
   const timed = all.filter((activity) => activity.start && !completedIds.has(activity.id));
   const current = timed.find((activity) => {
     const start = new Date(activity.start!).getTime();
@@ -146,10 +150,18 @@ export function getStopState(
   }) ?? null;
   const next = timed.find((activity) => new Date(activity.start!).getTime() > nowMs) ?? null;
 
+  // A vague block such as "上午" or "下午" must not eclipse explicitly timed
+  // stops. It remains an unfinished task and becomes the next item only when
+  // today's timed sequence no longer has something more precise to show.
+  const bostonDate = bostonIsoDate(now);
+  const vagueToday = all.find(
+    (activity) => activity.vague && activity.isoDate === bostonDate && !completedIds.has(activity.id),
+  ) ?? null;
+
   return {
     phase: "active",
     current,
-    next,
+    next: next ?? (!current ? vagueToday : null),
     countdownMs: next?.start ? new Date(next.start).getTime() - nowMs : null,
   };
 }
