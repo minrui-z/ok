@@ -1,7 +1,9 @@
 "use client";
 
 import {
+  AlarmClock,
   AlertTriangle,
+  BadgeCheck,
   Bell,
   BookOpen,
   BusFront,
@@ -21,6 +23,7 @@ import {
   Landmark,
   Luggage,
   Map as MapIcon,
+  MapPinned,
   MessageSquareText,
   Moon,
   MoreHorizontal,
@@ -50,6 +53,12 @@ import { TripMap } from "./components/TripMap";
 import { NotificationSettings } from "./components/NotificationSettings";
 import { TripEditor } from "./components/TripEditor";
 import {
+  TripResponsePanel,
+  type PlaceConfirmation,
+  type ResponsePanelState,
+} from "./components/TripResponsePanel";
+import { officialPlaceForActivity } from "./place-directory";
+import {
   categoryLabels,
   restaurantGroups,
   tripDays,
@@ -59,7 +68,7 @@ import {
   type TripDay,
   type TravelMode,
 } from "./trip-data";
-import { bostonIsoDate, checkSchedule, formatCountdown, getStopState, resolveDayActivities, type Intensity } from "./trip-utils";
+import { bostonIsoDate, checkSchedule, formatCountdown, getStopState, isProtectedActivity, resolveDayActivities, type Intensity } from "./trip-utils";
 
 type PrimaryWorkspace = "today" | "itinerary" | "map" | "more";
 type Workspace = PrimaryWorkspace | "bookings" | "collaboration" | "editor";
@@ -142,6 +151,9 @@ export default function TripPlanner() {
   const [mapCategories, setMapCategories] = useState<Set<ActivityCategory>>(new Set(allCategories));
   const [packing, setPacking] = useState<Set<string>>(new Set());
   const [pollSeed, setPollSeed] = useState<PollSeed>(null);
+  const [responsePanel, setResponsePanel] = useState<ResponsePanelState | null>(null);
+  const [placeConfirmations, setPlaceConfirmations] = useState<Map<string, PlaceConfirmation>>(new Map());
+  const [collabUnlocked, setCollabUnlocked] = useState(false);
   const [settingsReady, setSettingsReady] = useState(false);
   const contentRef = useRef<HTMLElement>(null);
 
@@ -191,6 +203,24 @@ export default function TripPlanner() {
     }
   }, []);
 
+  const refreshPlaceConfirmations = useCallback(async () => {
+    try {
+      const response = await fetch("/api/collab/place-confirmations", { cache: "no-store" });
+      if (response.status === 401) {
+        setCollabUnlocked(false);
+        setPlaceConfirmations(new Map());
+        return;
+      }
+      if (!response.ok) return;
+      const data = await response.json() as { confirmations?: PlaceConfirmation[] };
+      if (!Array.isArray(data.confirmations)) return;
+      setPlaceConfirmations(new Map(data.confirmations.map((confirmation) => [confirmation.activityId, confirmation])));
+      setCollabUnlocked(true);
+    } catch {
+      // Confirmation stamps keep their last known state if the shared API is temporarily unavailable.
+    }
+  }, []);
+
   useEffect(() => {
     const initial = window.setTimeout(() => void refreshSharedItinerary(), 0);
     const interval = window.setInterval(() => void refreshSharedItinerary(), 30_000);
@@ -202,6 +232,18 @@ export default function TripPlanner() {
       window.removeEventListener("focus", onFocus);
     };
   }, [refreshSharedItinerary]);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void refreshPlaceConfirmations(), 0);
+    const interval = window.setInterval(() => void refreshPlaceConfirmations(), 30_000);
+    const onFocus = () => void refreshPlaceConfirmations();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refreshPlaceConfirmations]);
 
   const selectedDay = days.find((day) => day.id === selectedDayId) ?? days[0] ?? tripDays[0];
   const resolved = useMemo(() => resolveDayActivities(selectedDay, intensity, rainyDays.has(selectedDay.id)), [intensity, rainyDays, selectedDay]);
@@ -243,6 +285,11 @@ export default function TripPlanner() {
     window.scrollTo({ top: 0, behavior: "smooth" });
     window.setTimeout(() => contentRef.current?.focus({ preventScroll: true }), 220);
   }, []);
+  const closeResponsePanel = useCallback(() => setResponsePanel(null), []);
+  const openResponsePanel = useCallback((mode: ResponsePanelState["mode"], dayId: string, activityId?: string) => {
+    setResponsePanel({ mode, dayId, activityId });
+    void refreshPlaceConfirmations();
+  }, [refreshPlaceConfirmations]);
 
   function openDay(dayId: string) { chooseDay(dayId); activateView("itinerary"); }
   function toggleRain() {
@@ -279,6 +326,9 @@ export default function TripPlanner() {
     : null;
   const departAtMs = departAt?.getTime() ?? null;
   const primaryView = primaryWorkspace(activeView);
+  const todayResponseActivity = todayResolved.visible.find((activity) => activity.id === currentStop?.id || activity.id === routeTarget?.id)
+    ?? todayResolved.visible.find((activity) => activity.start && !activity.vague)
+    ?? todayResolved.visible[0];
 
   useEffect(() => {
     if (!now || !routeTarget || !routeLeg || departAtMs === null) return;
@@ -348,7 +398,7 @@ export default function TripPlanner() {
             {stopState?.phase === "complete" ? <div className="next-stop-main"><CheckCircle2 size={26} /><div><small>旅程狀態</small><h2>行程已完成</h2></div></div> : <>
               <div className="next-stop-main"><Navigation size={25} /><div><small>{stopState?.phase === "before" || !stopState?.current ? "下一站" : "目前"}</small><h2>{currentStop?.title ?? "等待行程"}</h2><p>{stopState?.phase === "before" ? `還有 ${formatCountdown(stopState.countdownMs)}` : stopState?.current ? stopState.current.timeLabel : `還有 ${formatCountdown(stopState?.countdownMs ?? null)}`}</p></div></div>
               <div className="next-stop-upcoming"><span>{routeLeg ? "前往下一站" : "接著"}</span><strong>{routeTarget?.title ?? "今天沒有下一站"}</strong>{routeLeg && <small>{travelModeLabels[routeLeg.mode]}約 {routeLeg.minutes} 分 · 緩衝 {routeLeg.bufferMin} 分{departAt ? ` · ${formatActivityTime(routeTarget!, departAt)} 前出發` : ""}</small>}</div>
-              <div className="next-stop-actions"><button aria-label="上一站" onClick={() => moveManual(-1)}><ChevronLeft size={18} /></button><button onClick={completeCurrent}><Check size={17} />完成</button><button aria-label="下一站" onClick={() => moveManual(1)}><ChevronRight size={18} /></button>{routeTarget?.coordinates && <a aria-label={`開啟到 ${routeTarget.title} 的 Google Maps 路線`} href={directionsUrl(routeTarget, routeOrigin)} target="_blank" rel="noreferrer"><Navigation size={17} /><span>路線</span></a>}{manualActivityId && <button className="follow-now" onClick={() => setManualActivityId(null)}>跟隨現在</button>}</div>
+              <div className="next-stop-actions"><button aria-label="上一站" onClick={() => moveManual(-1)}><ChevronLeft size={18} /></button><button onClick={completeCurrent}><Check size={17} />完成</button><button aria-label="下一站" onClick={() => moveManual(1)}><ChevronRight size={18} /></button>{routeTarget?.coordinates && <a aria-label={`開啟到 ${routeTarget.title} 的 Google Maps 路線`} href={directionsUrl(routeTarget, routeOrigin)} target="_blank" rel="noreferrer"><Navigation size={17} /><span>路線</span></a>}<button className="response-quick-button" onClick={() => openResponsePanel("delay", todayDay.id, todayResponseActivity?.id)}><AlarmClock size={17} />調整行程</button>{manualActivityId && <button className="follow-now" onClick={() => setManualActivityId(null)}>跟隨現在</button>}</div>
             </>}
           </section>
 
@@ -367,20 +417,24 @@ export default function TripPlanner() {
           <div className="itinerary-controls glass-card">
             <div className="control-group"><span>行程強度</span><div className="segmented">{(["relaxed", "standard", "full"] as Intensity[]).map((value) => <button key={value} className={intensity === value ? "active" : ""} aria-pressed={intensity === value} onClick={() => setIntensity(value)}>{intensityLabels[value]}</button>)}</div></div>
             <button className={`weather-toggle ${rainyDays.has(selectedDay.id) ? "active" : ""}`} aria-pressed={rainyDays.has(selectedDay.id)} onClick={toggleRain}><CloudRain size={18} />{selectedDay.date} 雨天</button>
+            <button className="secondary-button compact" onClick={() => openResponsePanel("delay", selectedDay.id, activities[0]?.id)}><AlarmClock size={17} />{selectedDay.adaptation ? `已重排 +${selectedDay.adaptation.delayMin} 分` : "行程應變"}</button>
             <button className="secondary-button compact" onClick={() => activateView("map")}><MapIcon size={17} />打開地圖</button>
           </div>
           <div className="day-picker" aria-label="選擇日期">{days.map((day) => <button key={day.id} className={`day-chip ${day.id === selectedDay.id ? "active" : ""}`} aria-pressed={day.id === selectedDay.id} aria-current={day.id === selectedDay.id ? "date" : undefined} onClick={() => chooseDay(day.id)} style={{ "--day-color": day.color } as React.CSSProperties}><span>{day.weekday}</span><strong>{day.date}</strong></button>)}</div>
 
           <div className={`day-detail kind-${selectedDay.kind}`}>
-            <aside className="day-summary glass-card"><div className="day-summary-top"><span className="kind-badge">{selectedDay.kind === "apsa" ? "APSA" : selectedDay.kind === "drive" ? "DRIVE" : selectedDay.kind === "flight" || selectedDay.kind === "return" ? "FLIGHT" : "EXPLORE"}</span><span>{selectedDay.location}</span></div><h2>{selectedDay.title}</h2><p>{selectedDay.note}</p>{rainyDays.has(selectedDay.id) && <div className="rain-note"><CloudRain size={16} />戶外項目已換成室內安排</div>}
+            <aside className="day-summary glass-card"><div className="day-summary-top"><span className="kind-badge">{selectedDay.kind === "apsa" ? "APSA" : selectedDay.kind === "drive" ? "DRIVE" : selectedDay.kind === "flight" || selectedDay.kind === "return" ? "FLIGHT" : "EXPLORE"}</span><span>{selectedDay.location}</span></div><h2>{selectedDay.title}</h2><p>{selectedDay.note}</p>{rainyDays.has(selectedDay.id) && <div className="rain-note"><CloudRain size={16} />戶外項目已換成室內安排</div>}{selectedDay.adaptation && <button className="adaptation-note" onClick={() => openResponsePanel("delay", selectedDay.id, selectedDay.adaptation?.fromActivityId)}><AlarmClock size={16} /><span><strong>已從所選站點延後 {selectedDay.adaptation.delayMin} 分鐘</strong><small>{selectedDay.adaptation.skippedActivityIds.length ? `同時省略 ${selectedDay.adaptation.skippedActivityIds.length} 項` : "沒有省略行程"}</small></span><ChevronRight size={16} /></button>}
               <div className={`conflict-summary ${problemChecks.some((check) => check.state === "conflict") ? "has-conflict" : problemChecks.length ? "has-tight" : "is-clear"}`}>{problemChecks.some((check) => check.state === "conflict") ? <AlertTriangle size={17} /> : <Clock3 size={17} />}<div><strong>{problemChecks.filter((check) => check.state === "conflict").length ? `${problemChecks.filter((check) => check.state === "conflict").length} 段會撞到` : problemChecks.length ? `${problemChecks.length} 段偏緊` : "時間安排可行"}</strong><small>{selectedDay.activities.some((activity) => activity.vague) ? "時間未定的 APSA 項目未納入" : "已計入停留、交通與緩衝"}</small></div></div>
               {problemChecks.length > 0 && <ul className="conflict-list">{problemChecks.map((check) => <li key={check.id}><span>{check.from.title} → {check.to.title}</span><b>{check.slackMin < 0 ? `少 ${Math.abs(check.slackMin)} 分` : `只剩 ${check.slackMin} 分`}</b></li>)}</ul>}
             </aside>
             <div><ol className="timeline">{activities.map((activity, index) => {
               const Icon = iconMap[activity.icon]; const leg = activity.travelFromPrevious; const TravelIcon = leg ? travelModeIcons[leg.mode] : null; const check = checksByDestination.get(activity.id);
+              const official = officialPlaceForActivity(activity);
+              const confirmation = placeConfirmations.get(activity.id);
+              const confirmedRecently = Boolean(confirmation && confirmation.expiresAt > (now?.getTime() ?? 0));
               return <li className="timeline-item" key={activity.id}><time className="timeline-time">{activity.timeLabel}</time><span className="timeline-node"><Icon size={16} /></span>{index < activities.length - 1 && <span className="timeline-rail" />}<div className="timeline-entry">
                 {leg && TravelIcon && <div className={`travel-leg ${check?.state ? `schedule-${check.state}` : ""}`} aria-label={`前往 ${activity.title} 的交通`}><span className="travel-leg-icon"><TravelIcon size={16} /></span><div className="travel-leg-copy"><span>{travelModeLabels[leg.mode]} · 約 {leg.minutes} 分</span><strong>{leg.summary}</strong>{leg.note && <small>{leg.note}</small>}</div><b>{check?.state === "conflict" ? `少 ${Math.abs(check.slackMin)} 分` : check?.state === "tight" ? `只剩 ${check.slackMin} 分` : `緩衝 ${leg.bufferMin} 分`}</b></div>}
-                <article className={`activity-card glass-card ${activity.photo ? "has-photo" : ""}`}><div className="activity-content">{activity.photo && <a className="activity-photo" href={activity.photo.source} target="_blank" rel="noreferrer"><Image src={activity.photo.src} alt={activity.photo.alt} width={288} height={176} sizes="(max-width: 640px) 100vw, 144px" loading="lazy" /><small>{activity.photo.credit}</small></a>}<div><span className="activity-category">{categoryLabels[activity.category]} · 約 {activity.durationMin || "—"} 分</span><h3>{activity.title}</h3><p>{activity.detail}</p></div></div><div className="activity-links">{activity.coordinates && <a href={mapUrl(activity)} target="_blank" rel="noreferrer" aria-label={`導航到 ${activity.title}`}><Navigation size={17} /></a>}{activity.officialUrl && <a href={activity.officialUrl} target="_blank" rel="noreferrer">{activity.officialLabel}<ExternalLink size={14} /></a>}</div></article>
+                <article className={`activity-card glass-card ${activity.photo ? "has-photo" : ""}`}><div className="activity-content">{activity.photo && <a className="activity-photo" href={activity.photo.source} target="_blank" rel="noreferrer"><Image src={activity.photo.src} alt={activity.photo.alt} width={288} height={176} sizes="(max-width: 640px) 100vw, 144px" loading="lazy" /><small>{activity.photo.credit}</small></a>}<div><span className="activity-category">{categoryLabels[activity.category]} · 約 {activity.durationMin || "—"} 分</span><h3>{activity.title}</h3><p>{activity.detail}</p>{official && <button type="button" className={`place-stamp ${confirmedRecently ? "is-fresh" : "is-pending"}`} onClick={() => openResponsePanel("confirm", selectedDay.id, activity.id)}><BadgeCheck size={14} />{confirmedRecently ? `${confirmation?.authorName} 已確認` : confirmation ? "確認已過期" : "待確認營業"}</button>}</div></div><div className="activity-links">{activity.coordinates && <a href={mapUrl(activity)} target="_blank" rel="noreferrer" aria-label={`導航到 ${activity.title}`}><Navigation size={17} /></a>}{official && <a href={official.officialUrl} target="_blank" rel="noreferrer">{official.officialLabel}<ExternalLink size={14} /></a>}{activity.coordinates && !isProtectedActivity(activity) && <button onClick={() => openResponsePanel("nearby", selectedDay.id, activity.id)}><MapPinned size={15} />附近備案</button>}</div></article>
               </div></li>;
             })}</ol>{resolved.hidden.length > 0 && !revealedDays.has(selectedDay.id) && <button className="reveal-button" onClick={() => setRevealedDays((current) => new Set(current).add(selectedDay.id))}>顯示另外 {resolved.hidden.length} 項</button>}</div>
           </div>
@@ -424,6 +478,23 @@ export default function TripPlanner() {
           <div className="essentials-grid more-essentials"><div className="checklist glass-card"><h2>隨身與文件</h2>{packingList.map((item) => <label key={item}><input type="checkbox" checked={packing.has(item)} onChange={() => setPacking((current) => { const next = new Set(current); if (next.has(item)) next.delete(item); else next.add(item); return next; })} /><span><Check size={15} /></span>{item}</label>)}</div><div className="trip-facts glass-card"><h2>固定資料</h2><dl><div><dt>住宿</dt><dd>Boston Marriott Copley Place</dd></div><div><dt>APSA</dt><dd>9/4 上午、9/5 下午</dd></div><div><dt>租車</dt><dd>9/8—9/9，Back Bay 取還</dd></div><div><dt>返程</dt><dd>9/10 20:00 BOS → SEA</dd></div></dl><button className="secondary-button" onClick={() => activateView("bookings")}><Ticket size={17} />查看預約清單</button></div></div>
         </section>}
       </main>
+
+      {responsePanel && <TripResponsePanel
+        key={`${responsePanel.dayId}:${responsePanel.mode}:${responsePanel.activityId ?? "day"}`}
+        panel={responsePanel}
+        days={days}
+        version={itineraryVersion}
+        intensity={intensity}
+        rainyDays={rainyDays}
+        now={now}
+        confirmations={placeConfirmations}
+        unlocked={collabUnlocked}
+        onClose={closeResponsePanel}
+        onUpdated={(nextDays, nextVersion) => { setDays(nextDays); setItineraryVersion(nextVersion); }}
+        onRefreshConfirmations={refreshPlaceConfirmations}
+        onUnlocked={() => setCollabUnlocked(true)}
+        onLocked={() => setCollabUnlocked(false)}
+      />}
 
       <footer><BookOpen size={17} /><span>Boston Field Notes · 2026</span><span>即時資訊更新失敗時，請以各單位官網為準</span></footer>
       <nav className="bottom-nav glass-bar" aria-label="行動版主要導覽">{navItems.map(({ id, label, icon: NavIcon }) => <button key={id} className={primaryView === id ? "active" : ""} aria-current={primaryView === id ? "page" : undefined} onClick={() => activateView(id)}><NavIcon size={18} /><span>{label}</span></button>)}</nav>

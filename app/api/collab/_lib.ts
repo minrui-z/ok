@@ -179,6 +179,9 @@ export function ensureCollabSchema(db: D1Database) {
       "CREATE TABLE IF NOT EXISTS expenses (id TEXT PRIMARY KEY NOT NULL, day_id TEXT, description TEXT NOT NULL, category TEXT NOT NULL, amount_cents INTEGER NOT NULL, currency TEXT NOT NULL, paid_by TEXT NOT NULL, participants_json TEXT NOT NULL, author_id TEXT NOT NULL, author_name TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
       "CREATE INDEX IF NOT EXISTS idx_expenses_day_updated ON expenses (day_id, updated_at)",
       "CREATE INDEX IF NOT EXISTS idx_expenses_author ON expenses (author_id)",
+      "CREATE TABLE IF NOT EXISTS place_confirmations (id TEXT PRIMARY KEY NOT NULL, activity_id TEXT NOT NULL, place_name TEXT NOT NULL, official_url TEXT NOT NULL, author_id TEXT NOT NULL, author_name TEXT NOT NULL, confirmed_at INTEGER NOT NULL, expires_at INTEGER NOT NULL)",
+      "CREATE INDEX IF NOT EXISTS idx_place_confirmations_activity_latest ON place_confirmations (activity_id, confirmed_at)",
+      "PRAGMA optimize",
       "CREATE TABLE IF NOT EXISTS itinerary_versions (trip_id TEXT NOT NULL, version INTEGER NOT NULL, schema_version INTEGER DEFAULT 1 NOT NULL, snapshot_json TEXT NOT NULL, action TEXT NOT NULL, target_id TEXT, source_version INTEGER, summary TEXT NOT NULL, author_id TEXT, author_name TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (trip_id, version))",
     ];
     // Each prepared statement contains exactly one SQL operation; batch applies

@@ -2,12 +2,14 @@ import type {
   Activity,
   ActivityCategory,
   ActivityPriority,
+  DayAdaptation,
   IconKey,
   PlacePhoto,
   TravelLeg,
   TravelMode,
   TripDay,
 } from "../../trip-data";
+import { isProtectedActivity } from "../../trip-utils";
 
 export const ITINERARY_SCHEMA_VERSION = 1;
 
@@ -23,6 +25,7 @@ export type ItineraryAction =
   | "activity.move"
   | "activity.delete"
   | "day.update"
+  | "day.adapt"
   | "version.restore";
 
 export type ItineraryOperation =
@@ -31,6 +34,7 @@ export type ItineraryOperation =
   | { type: "activity.move"; activityId: string; toDayId: string; toIndex: number }
   | { type: "activity.delete"; activityId: string; confirmImportant: boolean }
   | { type: "day.update"; dayId: string; changes: Record<string, unknown> }
+  | { type: "day.adapt"; dayId: string; adaptation: DayAdaptation | null }
   | { type: "version.restore"; version: number };
 
 export type AppliedOperation = {
@@ -66,7 +70,7 @@ const activityFields = new Set([
 ]);
 const activityChangeFields = new Set([...activityFields].filter((field) => field !== "id"));
 const rainActivityFields = new Set([...activityFields].filter((field) => field !== "rainAlternative"));
-const dayFields = new Set(["id", "date", "isoDate", "weekday", "location", "title", "note", "color", "kind", "activities"]);
+const dayFields = new Set(["id", "date", "isoDate", "weekday", "location", "title", "note", "color", "kind", "activities", "adaptation"]);
 const dayChangeFields = new Set(["date", "isoDate", "weekday", "location", "title", "note", "color", "kind"]);
 
 function record(value: unknown, message: string): Record<string, unknown> {
@@ -162,6 +166,44 @@ function sanitizeCoordinates(value: unknown): [number, number] | undefined {
   return [value[0], value[1]];
 }
 
+function sanitizeAdaptationShape(value: unknown): DayAdaptation {
+  const raw = record(value, "延誤調整資料不正確。");
+  assertOnlyKeys(raw, new Set(["fromActivityId", "delayMin", "skippedActivityIds"]), "延誤調整包含不支援的欄位。");
+  const delayMin = integer(raw.delayMin, 15, 60, "延誤時間");
+  if (delayMin !== 15 && delayMin !== 30 && delayMin !== 60) {
+    throw new ItineraryInputError("延誤時間只能選 15、30 或 60 分鐘。");
+  }
+  if (!Array.isArray(raw.skippedActivityIds) || raw.skippedActivityIds.length > 100) {
+    throw new ItineraryInputError("省略活動清單不正確。");
+  }
+  const skippedActivityIds = raw.skippedActivityIds.map((value) => id(value, "省略活動 ID"));
+  if (new Set(skippedActivityIds).size !== skippedActivityIds.length) {
+    throw new ItineraryInputError("省略活動不可重複。");
+  }
+  return {
+    fromActivityId: id(raw.fromActivityId, "延誤起點 ID"),
+    delayMin,
+    skippedActivityIds,
+  };
+}
+
+function validateDayAdaptation(adaptation: DayAdaptation, activities: Activity[]) {
+  const anchorIndex = activities.findIndex((activity) => activity.id === adaptation.fromActivityId);
+  if (anchorIndex < 0) throw new ItineraryInputError("找不到延誤調整的起點活動。");
+  const anchor = activities[anchorIndex];
+  if (!anchor.start || anchor.vague) throw new ItineraryInputError("延誤調整的起點必須有明確時間。");
+
+  for (const skippedActivityId of adaptation.skippedActivityIds) {
+    const skippedIndex = activities.findIndex((activity) => activity.id === skippedActivityId);
+    if (skippedIndex < 0) throw new ItineraryInputError("找不到要省略的活動。");
+    if (skippedIndex < anchorIndex) throw new ItineraryInputError("只能省略延誤起點之後的活動。");
+    const skipped = activities[skippedIndex];
+    if (isProtectedActivity(skipped)) {
+      throw new ItineraryInputError("航班、住宿、APSA、已購票或固定行程不能省略。");
+    }
+  }
+}
+
 function sanitizeActivity(value: unknown, allowRainAlternative = true): Activity {
   const raw = record(value, "活動資料不正確。");
   assertOnlyKeys(raw, allowRainAlternative ? activityFields : rainActivityFields, "活動包含不支援的欄位。");
@@ -220,6 +262,11 @@ function sanitizeDay(value: unknown): TripDay {
   const color = text(raw.color, 9, "日期顏色");
   if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw new ItineraryInputError("日期顏色格式不正確。");
   if (!Array.isArray(raw.activities) || raw.activities.length > 100) throw new ItineraryInputError("每日活動數量不正確。");
+  const activities = raw.activities.map((activity) => sanitizeActivity(activity));
+  const adaptation = raw.adaptation === undefined || raw.adaptation === null
+    ? undefined
+    : sanitizeAdaptationShape(raw.adaptation);
+  if (adaptation) validateDayAdaptation(adaptation, activities);
   return {
     id: id(raw.id, "日期 ID"),
     date: text(raw.date, 16, "顯示日期"),
@@ -230,7 +277,8 @@ function sanitizeDay(value: unknown): TripDay {
     note: text(raw.note, 1_000, "日期說明"),
     color,
     kind: enumValue(raw.kind, dayKinds, "日期類型") as TripDay["kind"],
-    activities: raw.activities.map((activity) => sanitizeActivity(activity)),
+    activities,
+    ...(adaptation ? { adaptation } : {}),
   };
 }
 
@@ -304,6 +352,14 @@ export function parseOperation(value: unknown): ItineraryOperation {
       const operation = strictOperation(value, ["dayId", "changes"]);
       return { type: "day.update", dayId: id(operation.dayId, "日期 ID"), changes: changeRecord(operation.changes, dayChangeFields, "日期修改") };
     }
+    case "day.adapt": {
+      const operation = strictOperation(value, ["dayId", "adaptation"]);
+      return {
+        type: "day.adapt",
+        dayId: id(operation.dayId, "日期 ID"),
+        adaptation: operation.adaptation === null ? null : sanitizeAdaptationShape(operation.adaptation),
+      };
+    }
     case "version.restore": {
       const operation = strictOperation(value, ["version"]);
       return { type: "version.restore", version: integer(operation.version, 1, Number.MAX_SAFE_INTEGER, "版本") };
@@ -367,6 +423,22 @@ export function applyOperation(currentValue: unknown, operation: ItineraryOperat
     const updated = sanitizeDay({ ...currentDay, ...operation.changes, id: currentDay.id, activities: currentDay.activities });
     document.days[dayIndex] = updated;
     return { document: validateTripDocument(document), action: operation.type, targetId: updated.id, sourceVersion: null, summary: `修改 ${updated.date}「${updated.title}」` };
+  }
+
+  if (operation.type === "day.adapt") {
+    const dayIndex = document.days.findIndex((day) => day.id === operation.dayId);
+    if (dayIndex < 0) throw new ItineraryInputError("找不到指定日期。", 404);
+    const currentDay = document.days[dayIndex];
+    const updated = sanitizeDay({
+      ...currentDay,
+      adaptation: operation.adaptation,
+      activities: currentDay.activities,
+    });
+    document.days[dayIndex] = updated;
+    const summary = operation.adaptation
+      ? `調整 ${updated.date}：延後 ${operation.adaptation.delayMin} 分鐘${operation.adaptation.skippedActivityIds.length ? `，省略 ${operation.adaptation.skippedActivityIds.length} 項` : ""}`
+      : `清除 ${updated.date} 的延誤調整`;
+    return { document: validateTripDocument(document), action: operation.type, targetId: updated.id, sourceVersion: null, summary };
   }
 
   const located = locateActivity(document, operation.activityId);

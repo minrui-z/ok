@@ -67,6 +67,7 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
 
   await t.test("locked visitors cannot read", async () => {
     assert.equal((await request("/api/collab/notes")).status, 401);
+    assert.equal((await request("/api/collab/place-confirmations")).status, 401);
   });
 
   let itineraryVersion = 1;
@@ -330,6 +331,140 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
     assert.equal("history" in publicItinerary, false);
     assert.equal("authorName" in publicItinerary, false);
     assert.equal("authorId" in publicItinerary, false);
+  });
+
+  await t.test("unlocked travelers can preview-safe adapt a day without moving protected stops", async () => {
+    const protectedSkip = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: ownerCookie,
+      body: {
+        baseVersion: itineraryVersion,
+        operation: {
+          type: "day.adapt",
+          dayId: "sep-03",
+          adaptation: {
+            fromActivityId: "sep03-common",
+            delayMin: 15,
+            skippedActivityIds: ["sep03-apsa-event"],
+          },
+        },
+      },
+    });
+    assert.equal(protectedSkip.status, 400);
+    assert.equal((await (await request("/api/itinerary")).json()).version, itineraryVersion);
+
+    const response = await request("/api/collab/itinerary", {
+      method: "PATCH",
+      cookie: friendCookie,
+      ip: "203.0.113.30",
+      body: {
+        baseVersion: itineraryVersion,
+        operation: {
+          type: "day.adapt",
+          dayId: "sep-03",
+          adaptation: {
+            fromActivityId: "sep03-common",
+            delayMin: 30,
+            skippedActivityIds: ["sep03-uss"],
+          },
+        },
+      },
+    });
+    assert.equal(response.status, 200);
+    const adapted = await response.json();
+    itineraryVersion = adapted.version;
+    assert.equal(itineraryVersion, 9);
+    assert.equal(adapted.change.action, "day.adapt");
+    assert.deepEqual(adapted.days.find((day) => day.id === "sep-03").adaptation, {
+      fromActivityId: "sep03-common",
+      delayMin: 30,
+      skippedActivityIds: ["sep03-uss"],
+    });
+    assert.equal(adapted.days.find((day) => day.id === "sep-03").activities.find((activity) => activity.id === "sep03-common").timeLabel, "09:00");
+  });
+
+  await t.test("place confirmations are protected, derived from the itinerary and expire after 24 hours", async () => {
+    const wrongOrigin = await request("/api/collab/place-confirmations", {
+      method: "POST",
+      cookie: ownerCookie,
+      origin: "https://evil.test",
+      body: { activityId: "sep08-breakers" },
+    });
+    assert.equal(wrongOrigin.status, 403);
+    assert.equal((await request("/api/collab/place-confirmations", {
+      method: "POST",
+      cookie: ownerCookie,
+      body: { activityId: "missing-place" },
+    })).status, 404);
+    assert.equal((await request("/api/collab/place-confirmations", {
+      method: "POST",
+      cookie: ownerCookie,
+      body: { activityId: "sep09-nb" },
+    })).status, 400);
+    assert.equal((await request("/api/collab/place-confirmations", {
+      method: "POST",
+      cookie: ownerCookie,
+      body: { activityId: "sep08-breakers", officialUrl: "https://evil.test/", placeName: "Fake" },
+    })).status, 400);
+
+    const create = await request("/api/collab/place-confirmations", {
+      method: "POST",
+      cookie: friendCookie,
+      ip: "203.0.113.30",
+      body: { activityId: "sep08-breakers" },
+    });
+    assert.equal(create.status, 201);
+    const { confirmation } = await create.json();
+    assert.equal(confirmation.activityId, "sep08-breakers");
+    assert.equal(confirmation.placeName, "The Breakers");
+    assert.equal(confirmation.officialUrl, "https://www.newportmansions.org/plan-a-visit/");
+    assert.equal(confirmation.authorName, "Friend");
+    assert.equal(confirmation.expiresAt - confirmation.confirmedAt, 24 * 60 * 60 * 1000);
+    assert.equal(confirmation.fresh, true);
+
+    const fallbackCreate = await request("/api/collab/place-confirmations", {
+      method: "POST",
+      cookie: ownerCookie,
+      body: { activityId: "sep05-bpl" },
+    });
+    assert.equal(fallbackCreate.status, 201);
+    const fallbackConfirmation = (await fallbackCreate.json()).confirmation;
+    assert.equal(fallbackConfirmation.placeName, "Boston Public Library");
+    assert.equal(fallbackConfirmation.officialUrl, "https://www.bpl.org/locations/central/");
+
+    const rainCreate = await request("/api/collab/place-confirmations", {
+      method: "POST",
+      cookie: ownerCookie,
+      body: { activityId: "sep04-mfa-rain" },
+    });
+    assert.equal(rainCreate.status, 201);
+    assert.equal((await rainCreate.json()).confirmation.officialUrl, "https://www.mfa.org/visit");
+
+    const selectedResponse = await request("/api/collab/place-confirmations?activityId=sep08-breakers", { cookie: ownerCookie });
+    assert.equal(selectedResponse.status, 200);
+    const selected = await selectedResponse.json();
+    assert.equal(selected.confirmations.length, 1);
+    assert.equal(selected.confirmations[0].id, confirmation.id);
+    assert.equal(selected.confirmations[0].fresh, true);
+    assert.equal(selected.participantId.length > 0, true);
+    assert.equal(typeof selected.serverNow, "number");
+    assert.equal((await request("/api/collab/place-confirmations?activityId=bad%20id", { cookie: ownerCookie })).status, 400);
+
+    const refresh = await request("/api/collab/place-confirmations", {
+      method: "POST",
+      cookie: ownerCookie,
+      body: { activityId: "sep08-breakers" },
+    });
+    assert.equal(refresh.status, 201);
+    const refreshed = (await refresh.json()).confirmation;
+    const latest = await (await request("/api/collab/place-confirmations?activityId=sep08-breakers", { cookie: ownerCookie })).json();
+    assert.equal(latest.confirmations.length, 1);
+    assert.equal(latest.confirmations[0].id, refreshed.id);
+    assert.equal(latest.confirmations[0].authorName, "Min");
+
+    await bindings.DB.prepare("UPDATE place_confirmations SET expires_at = ? WHERE id = ?").bind(Date.now() - 1, refreshed.id).run();
+    const expired = await (await request("/api/collab/place-confirmations?activityId=sep08-breakers", { cookie: ownerCookie })).json();
+    assert.equal(expired.confirmations[0].fresh, false);
   });
 
   let expenseId;

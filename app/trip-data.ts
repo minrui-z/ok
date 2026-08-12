@@ -29,6 +29,18 @@ export type ActivityCategory =
 
 export type ActivityPriority = "essential" | "recommended" | "optional";
 
+export type DelayMinutes = 15 | 30 | 60;
+
+/**
+ * A non-destructive, shared day-of adjustment. The original activities keep
+ * their authored times; consumers apply this overlay when rendering the day.
+ */
+export type DayAdaptation = {
+  fromActivityId: string;
+  delayMin: DelayMinutes;
+  skippedActivityIds: string[];
+};
+
 export type TravelMode = "walk" | "transit" | "train" | "drive" | "flight" | "indoor";
 
 export type TravelLeg = {
@@ -81,6 +93,7 @@ export type TripDay = {
   color: string;
   kind: "flight" | "city" | "apsa" | "daytrip" | "drive" | "return";
   activities: Activity[];
+  adaptation?: DayAdaptation;
 };
 
 export type Restaurant = {

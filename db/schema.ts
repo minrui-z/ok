@@ -77,6 +77,19 @@ export const expenses = sqliteTable("expenses", {
   index("idx_expenses_author").on(table.authorId),
 ]);
 
+export const placeConfirmations = sqliteTable("place_confirmations", {
+  id: text("id").primaryKey(),
+  activityId: text("activity_id").notNull(),
+  placeName: text("place_name").notNull(),
+  officialUrl: text("official_url").notNull(),
+  authorId: text("author_id").notNull(),
+  authorName: text("author_name").notNull(),
+  confirmedAt: integer("confirmed_at").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+}, (table) => [
+  index("idx_place_confirmations_activity_latest").on(table.activityId, table.confirmedAt),
+]);
+
 export const itineraryVersions = sqliteTable("itinerary_versions", {
   tripId: text("trip_id").notNull(),
   version: integer("version").notNull(),
@@ -90,6 +103,7 @@ export const itineraryVersions = sqliteTable("itinerary_versions", {
       "activity.move",
       "activity.delete",
       "day.update",
+      "day.adapt",
       "version.restore",
     ],
   }).notNull(),
