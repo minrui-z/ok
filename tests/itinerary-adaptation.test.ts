@@ -5,7 +5,6 @@ import { tripDays, type Activity, type TripDay } from "../app/trip-data";
 import {
   applyDayAdaptation,
   resolveDayActivities,
-  suggestDelaySkips,
 } from "../app/trip-utils";
 
 function activity(
@@ -124,27 +123,6 @@ test("delay is applied before rain replacement and intensity filtering", () => {
     adaptation: { ...adapted.adaptation, skippedActivityIds: ["sep08-cliff"] },
   }, "full", true);
   assert.equal(skipped.visible.some((item) => item.id === "sep08-marble-rain"), false);
-});
-
-test("skip suggestions rank optional before recommended and recalculate conflicts", () => {
-  const source = day([
-    activity("anchor", "2026-09-03T09:00:00-04:00", "essential", { durationMin: 60 }),
-    activity("recommended", "2026-09-03T10:15:00-04:00", "recommended"),
-    activity("optional", "2026-09-03T10:45:00-04:00", "optional"),
-    activity("protected", "2026-09-03T11:30:00-04:00", "optional", { category: "conference", fixed: true }),
-    activity("essential-flex", "2026-09-03T13:00:00-04:00", "essential"),
-  ]);
-  const suggestions = suggestDelaySkips(source, {
-    fromActivityId: "anchor",
-    delayMin: 60,
-    skippedActivityIds: [],
-  });
-
-  assert.deepEqual(suggestions.map((item) => item.activity.id), ["optional", "recommended"]);
-  assert.equal(suggestions.every((item) => item.checks.length > 0), true);
-  assert.equal(suggestions.every((item) => Number.isInteger(item.conflictCount) && item.shortageMin >= 0), true);
-  assert.equal(suggestions.some((item) => item.activity.id === "protected"), false);
-  assert.equal(suggestions.some((item) => item.activity.id === "essential-flex"), false);
 });
 
 test("day.adapt is versionable and validates protected and out-of-order skips", () => {

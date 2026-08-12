@@ -1980,8 +1980,7 @@ body:has(.response-dialog-backdrop) {
 }
 
 .response-intro p,
-.response-empty p,
-.skip-suggestions > p {
+.response-empty p {
   color: var(--color-muted-text);
   font-size: 13px;
   line-height: 1.55;
@@ -2027,15 +2026,13 @@ body:has(.response-dialog-backdrop) {
   width: 100%;
 }
 
-.response-form-grid fieldset,
-.skip-suggestions {
+.response-form-grid fieldset {
   border: 0;
   margin: 0;
   padding: 0;
 }
 
-.response-form-grid legend,
-.skip-suggestions legend {
+.response-form-grid legend {
   color: var(--color-muted-text);
   font-size: 12px;
   font-weight: 800;
@@ -2077,10 +2074,6 @@ body:has(.response-dialog-backdrop) {
   padding: 14px;
 }
 
-.delay-preview.is-clear { border-color: color-mix(in srgb, #2b8065 34%, var(--color-line)); }
-.delay-preview.has-tight { border-color: color-mix(in srgb, #a96f1f 38%, var(--color-line)); }
-.delay-preview.has-conflict { border-color: color-mix(in srgb, #af3434 38%, var(--color-line)); }
-
 .delay-preview > div {
   align-items: center;
   display: flex;
@@ -2103,7 +2096,6 @@ body:has(.response-dialog-backdrop) {
 }
 
 .delay-preview ol,
-.delay-preview ul,
 .alternative-excluded ul {
   display: grid;
   gap: 0;
@@ -2134,39 +2126,6 @@ body:has(.response-dialog-backdrop) {
   font-size: 12px;
   text-align: right;
 }
-
-.skip-suggestions {
-  display: grid;
-  gap: 8px;
-}
-
-.skip-suggestions > label {
-  align-items: center;
-  background: color-mix(in srgb, var(--color-glass-strong) 72%, transparent);
-  border: 1px solid var(--color-line);
-  border-radius: 13px;
-  cursor: pointer;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 22px minmax(0, 1fr);
-  min-height: 58px;
-  padding: 9px 12px;
-}
-
-.skip-suggestions input {
-  accent-color: var(--color-primary);
-  height: 20px;
-  margin: 0;
-  width: 20px;
-}
-
-.skip-suggestions label > span {
-  display: grid;
-  gap: 3px;
-}
-
-.skip-suggestions strong { color: var(--color-ink); font-size: 13px; }
-.skip-suggestions small { color: var(--color-muted-text); font-size: 12px; }
 
 .response-actions {
   align-items: center;
@@ -3166,25 +3125,7 @@ body:has(.response-dialog-backdrop) {
 .alert-details li strong { color: var(--color-accent); font-size: 9px; text-transform: lowercase; }
 .alert-details li span { color: var(--color-text); font-size: 11px; line-height: 1.5; }
 
-.conflict-summary { align-items: center; border-radius: 14px; display: flex; gap: 10px; margin-top: 20px; padding: 12px; position: relative; z-index: 1; }
-.conflict-summary.is-clear { background: rgba(38, 126, 98, .09); color: #276d58; }
-.conflict-summary.has-tight { background: rgba(169, 111, 31, .11); color: #8a5b1c; }
-.conflict-summary.has-conflict { background: rgba(175, 52, 52, .11); color: #9f3030; }
-:root[data-theme="dark"] .conflict-summary.is-clear { color: #85d8ba; }
-:root[data-theme="dark"] .conflict-summary.has-tight { color: #f0c480; }
-:root[data-theme="dark"] .conflict-summary.has-conflict,
 :root[data-theme="dark"] .status-error { color: #ffb5ad; }
-.conflict-summary div { display: grid; gap: 2px; }
-.conflict-summary strong { font-size: 11px; }
-.conflict-summary small { color: var(--color-muted-text); font-size: 9px; }
-.conflict-list { display: grid; gap: 7px; list-style: none; margin: 10px 0 0; padding: 0; position: relative; z-index: 1; }
-.conflict-list li { align-items: start; border-top: 1px solid var(--color-line); display: grid; gap: 5px; padding-top: 8px; }
-.conflict-list span { color: var(--color-muted-text); font-size: 9px; line-height: 1.45; }
-.conflict-list b { color: var(--color-accent); font-size: 9px; }
-.travel-leg.schedule-conflict { border-color: rgba(175, 52, 52, .34); }
-.travel-leg.schedule-tight { border-color: rgba(169, 111, 31, .34); }
-.travel-leg.schedule-conflict > b { color: #9f3030; }
-.travel-leg.schedule-tight > b { color: #8a5b1c; }
 .day-summary h2 { color: var(--color-ink); font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; font-size: 36px; font-weight: 500; letter-spacing: -.04em; line-height: 1.08; margin: 72px 0 18px; position: relative; z-index: 1; }
 .activity-card h3 { color: var(--color-ink); font-size: 16px; letter-spacing: -.015em; margin: 0 0 7px; }
 .restaurant-heading h2 { color: var(--color-ink); font-family: "Iowan Old Style", Georgia, serif; font-size: 30px; font-weight: 500; margin: 5px 0 0; }
@@ -3662,10 +3603,6 @@ body:has(.response-dialog-backdrop) {
 .alert-details summary,
 .alert-details li strong,
 .alert-details li span,
-.conflict-summary strong,
-.conflict-summary small,
-.conflict-list span,
-.conflict-list b,
 .booking-summary span,
 .booking-summary p,
 .booking-kind small,

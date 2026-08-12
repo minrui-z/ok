@@ -25,10 +25,8 @@ import type { Activity, DayAdaptation, DelayMinutes, TripDay } from "../trip-dat
 import { officialPlaceForActivity } from "../place-directory";
 import {
   bostonIsoDate,
-  checkSchedule,
   isProtectedActivity,
   resolveDayActivities,
-  suggestDelaySkips,
   type Intensity,
 } from "../trip-utils";
 
@@ -156,7 +154,6 @@ export function TripResponsePanel({
       : initialDelayAnchor?.id ?? "",
   );
   const [delayMin, setDelayMin] = useState<DelayMinutes>(day.adaptation?.delayMin ?? 15);
-  const [skippedIds, setSkippedIds] = useState<string[]>(day.adaptation?.skippedActivityIds ?? []);
   const [confirmationActivityId, setConfirmationActivityId] = useState(
     sights.find((activity) => activity.id === panel.activityId)?.id ?? sights[0]?.id ?? "",
   );
@@ -209,24 +206,12 @@ export function TripResponsePanel({
     };
   }, [onClose]);
 
-  const adaptation = useMemo<DayAdaptation | null>(() => anchorId ? ({ fromActivityId: anchorId, delayMin, skippedActivityIds: skippedIds }) : null, [anchorId, delayMin, skippedIds]);
+  const adaptation = useMemo<DayAdaptation | null>(() => anchorId ? ({ fromActivityId: anchorId, delayMin, skippedActivityIds: [] }) : null, [anchorId, delayMin]);
   const previewDay = useMemo(() => adaptation ? { ...day, adaptation } : day, [adaptation, day]);
   const previewResolved = useMemo(() => resolveDayActivities(previewDay, intensity, rainy), [intensity, previewDay, rainy]);
-  const previewChecks = useMemo(() => checkSchedule(previewResolved.visible), [previewResolved.visible]);
   const originalResolved = useMemo(() => resolveDayActivities({ ...day, adaptation: undefined }, intensity, rainy), [day, intensity, rainy]);
   const originalTimes = useMemo(() => new Map(originalResolved.visible.map((activity) => [activity.id, activity.start])), [originalResolved.visible]);
   const shiftedActivities = previewResolved.visible.filter((activity) => activity.start && originalTimes.get(activity.id) !== activity.start);
-  const skipSuggestions = useMemo(
-    () => adaptation ? suggestDelaySkips(day, adaptation, { intensity, rainy, limit: 3 }) : [],
-    [adaptation, day, intensity, rainy],
-  );
-  const suggestionIds = new Set(skipSuggestions.map((suggestion) => suggestion.activity.id));
-  const skipChoices = day.activities.filter((activity, index) => {
-    const anchorIndex = day.activities.findIndex((item) => item.id === anchorId);
-    return index >= anchorIndex && !isProtectedActivity(activity) && activity.priority !== "essential" && (suggestionIds.has(activity.id) || skippedIds.includes(activity.id));
-  });
-  const conflicts = previewChecks.filter((check) => check.state === "conflict");
-  const tight = previewChecks.filter((check) => check.state === "tight");
   const confirmationActivity = sights.find((activity) => activity.id === confirmationActivityId) ?? sights[0];
   const confirmation = confirmationActivity ? confirmations.get(confirmationActivity.id) : undefined;
   const freshConfirmation = Boolean(confirmation && now && confirmation.expiresAt > now.getTime());
@@ -306,7 +291,6 @@ export function TripResponsePanel({
   async function clearDelay() {
     const result = await itineraryOperation({ type: "day.adapt", dayId: day.id, adaptation: null });
     if (result) {
-      setSkippedIds([]);
       setNotice("已恢復這一天原本的時間。");
     }
   }
@@ -374,7 +358,7 @@ export function TripResponsePanel({
       activityId: replacementTarget.id,
       changes: replacement.patch,
     });
-    if (result) setNotice(`已把「${displayedReplacementTarget?.title ?? replacementTarget.title}」換成「${suggestion.candidate.title}」，交通與衝突已重新計算。`);
+    if (result) setNotice(`已把「${displayedReplacementTarget?.title ?? replacementTarget.title}」換成「${suggestion.candidate.title}」，交通段落已更新。`);
   }
 
   return (
@@ -406,17 +390,14 @@ export function TripResponsePanel({
             <div className="response-intro"><div><span className="response-icon"><AlarmClock size={21} /></span><div><h3>晚了多久？</h3><p>只移動可調整的站點；航班、APSA、住宿與已購票活動保持原時間。</p></div></div>{day.adaptation && <b>目前 +{day.adaptation.delayMin} 分</b>}</div>
 
             <div className="response-form-grid">
-              <label>從哪一站開始<select value={anchorId} onChange={(event) => { setAnchorId(event.target.value); setSkippedIds([]); }}>{delayAnchors.map((activity) => <option key={activity.id} value={activity.id}>{activity.timeLabel} · {activity.title}</option>)}</select></label>
+              <label>從哪一站開始<select value={anchorId} onChange={(event) => setAnchorId(event.target.value)}>{delayAnchors.map((activity) => <option key={activity.id} value={activity.id}>{activity.timeLabel} · {activity.title}</option>)}</select></label>
               <fieldset><legend>延誤時間</legend><div className="response-choice-row">{([15, 30, 60] as DelayMinutes[]).map((minutes) => <button type="button" key={minutes} className={delayMin === minutes ? "active" : ""} aria-pressed={delayMin === minutes} onClick={() => setDelayMin(minutes)}>+{minutes} 分</button>)}</div></fieldset>
             </div>
 
-            <section className={`delay-preview ${conflicts.length ? "has-conflict" : tight.length ? "has-tight" : "is-clear"}`} aria-live="polite">
-              <div><Clock3 size={18} /><span><strong>{conflicts.length ? `${conflicts.length} 段仍會撞到` : tight.length ? `${tight.length} 段剩餘時間偏緊` : "重排後沒有衝突"}</strong><small>依目前「{intensity === "relaxed" ? "輕鬆" : intensity === "standard" ? "標準" : "完整"}」強度計算</small></span></div>
+            <section className="delay-preview" aria-live="polite">
+              <div><Clock3 size={18} /><span><strong>調整後時間</strong><small>固定活動維持原時間</small></span></div>
               {shiftedActivities.length > 0 && <ol>{shiftedActivities.map((activity) => <li key={activity.id}><span>{activity.title}</span><b>{localTime(activity)}</b></li>)}</ol>}
-              {conflicts.length > 0 && <ul>{conflicts.map((check) => <li key={check.id}><span>{check.from.title} → {check.to.title}</span><b>少 {Math.abs(check.slackMin)} 分</b></li>)}</ul>}
             </section>
-
-            {skipChoices.length > 0 && <fieldset className="skip-suggestions"><legend>可考慮省略</legend><p>建議先拿掉非必要項目；勾選後會立刻重算。</p>{skipChoices.map((activity) => <label key={activity.id}><input type="checkbox" aria-label={`省略 ${activity.title}`} checked={skippedIds.includes(activity.id)} onChange={() => setSkippedIds((current) => current.includes(activity.id) ? current.filter((id) => id !== activity.id) : [...current, activity.id])} /><span><strong>{activity.title}</strong><small>{activity.priority === "optional" ? "選配" : "推薦"} · 可省下約 {activity.durationMin} 分</small></span></label>)}</fieldset>}
 
             <div className="response-actions"><button className="primary-button" disabled={busy || !adaptation} onClick={() => unlocked ? void applyDelay() : requestUnlock("先解鎖，就能把重排同步給同行者。")}>
               {busy ? <><LoaderCircle className="spin" size={17} />同步中</> : unlocked ? "套用這個重排" : "解鎖後套用"}

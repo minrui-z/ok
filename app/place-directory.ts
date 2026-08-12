@@ -26,7 +26,7 @@ export const officialPlaces: Record<string, OfficialPlace> = {
   "sep02-copley-rain": place("Boston Public Library", "https://www.bpl.org/locations/central/", ["Boston Public Library 與 Prudential Center"]),
   "sep03-common": place("Freedom Trail", "https://www.thefreedomtrail.org/visit", ["Boston Common 起走", "Freedom Trail"]),
   "sep03-common-rain": place("Old State House", "https://www.revolutionaryspaces.org/old-state-house/", ["Old State House"]),
-  "sep03-market-rain": place("Boston Public Market", "https://bostonpublicmarket.org/", ["Boston Public Market"]),
+  "sep03-market-rain": place("Quincy Market", "https://faneuilhallmarketplace.com/", ["Quincy Market 與 Boston Public Market", "Quincy Market"]),
   "sep03-old-north": place("Old North Church", "https://oldnorth.com/visit/", ["Paul Revere 與 Old North Church", "Old North Church"]),
   "sep03-old-north-rain": place("Old North Church", "https://oldnorth.com/visit/", ["Old North Church 室內參觀"]),
   "sep03-uss": place("USS Constitution", "https://www.nps.gov/bost/learn/historyculture/ussconst.htm", ["USS Constitution"]),

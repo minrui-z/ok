@@ -2,7 +2,6 @@
 
 import {
   AlarmClock,
-  AlertTriangle,
   BadgeCheck,
   Bell,
   BookOpen,
@@ -14,7 +13,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   CloudRain,
   Coffee,
   ExternalLink,
@@ -68,7 +66,7 @@ import {
   type TripDay,
   type TravelMode,
 } from "./trip-data";
-import { bostonIsoDate, checkSchedule, formatCountdown, getStopState, isProtectedActivity, resolveDayActivities, type Intensity } from "./trip-utils";
+import { bostonIsoDate, formatCountdown, getStopState, isProtectedActivity, resolveDayActivities, type Intensity } from "./trip-utils";
 
 type PrimaryWorkspace = "today" | "itinerary" | "map" | "more";
 type Workspace = PrimaryWorkspace | "bookings" | "collaboration" | "editor";
@@ -248,9 +246,6 @@ export default function TripPlanner() {
   const selectedDay = days.find((day) => day.id === selectedDayId) ?? days[0] ?? tripDays[0];
   const resolved = useMemo(() => resolveDayActivities(selectedDay, intensity, rainyDays.has(selectedDay.id)), [intensity, rainyDays, selectedDay]);
   const activities = revealedDays.has(selectedDay.id) ? resolved.all : resolved.visible;
-  const scheduleChecks = useMemo(() => checkSchedule(resolved.all), [resolved.all]);
-  const checksByDestination = useMemo(() => new Map(scheduleChecks.map((check) => [check.to.id, check])), [scheduleChecks]);
-  const problemChecks = scheduleChecks.filter((check) => check.state !== "clear");
   const selectedRestaurants = restaurantGroups.filter((group) => group.dayIds.includes(selectedDay.id));
   const effectiveDays = useMemo(() => days.map((day) => ({
     ...day,
@@ -423,17 +418,15 @@ export default function TripPlanner() {
           <div className="day-picker" aria-label="選擇日期">{days.map((day) => <button key={day.id} className={`day-chip ${day.id === selectedDay.id ? "active" : ""}`} aria-pressed={day.id === selectedDay.id} aria-current={day.id === selectedDay.id ? "date" : undefined} onClick={() => chooseDay(day.id)} style={{ "--day-color": day.color } as React.CSSProperties}><span>{day.weekday}</span><strong>{day.date}</strong></button>)}</div>
 
           <div className={`day-detail kind-${selectedDay.kind}`}>
-            <aside className="day-summary glass-card"><div className="day-summary-top"><span className="kind-badge">{selectedDay.kind === "apsa" ? "APSA" : selectedDay.kind === "drive" ? "DRIVE" : selectedDay.kind === "flight" || selectedDay.kind === "return" ? "FLIGHT" : "EXPLORE"}</span><span>{selectedDay.location}</span></div><h2>{selectedDay.title}</h2><p>{selectedDay.note}</p>{rainyDays.has(selectedDay.id) && <div className="rain-note"><CloudRain size={16} />戶外項目已換成室內安排</div>}{selectedDay.adaptation && <button className="adaptation-note" onClick={() => openResponsePanel("delay", selectedDay.id, selectedDay.adaptation?.fromActivityId)}><AlarmClock size={16} /><span><strong>已從所選站點延後 {selectedDay.adaptation.delayMin} 分鐘</strong><small>{selectedDay.adaptation.skippedActivityIds.length ? `同時省略 ${selectedDay.adaptation.skippedActivityIds.length} 項` : "沒有省略行程"}</small></span><ChevronRight size={16} /></button>}
-              <div className={`conflict-summary ${problemChecks.some((check) => check.state === "conflict") ? "has-conflict" : problemChecks.length ? "has-tight" : "is-clear"}`}>{problemChecks.some((check) => check.state === "conflict") ? <AlertTriangle size={17} /> : <Clock3 size={17} />}<div><strong>{problemChecks.filter((check) => check.state === "conflict").length ? `${problemChecks.filter((check) => check.state === "conflict").length} 段會撞到` : problemChecks.length ? `${problemChecks.length} 段偏緊` : "時間安排可行"}</strong><small>{selectedDay.activities.some((activity) => activity.vague) ? "時間未定的 APSA 項目未納入" : "已計入停留、交通與緩衝"}</small></div></div>
-              {problemChecks.length > 0 && <ul className="conflict-list">{problemChecks.map((check) => <li key={check.id}><span>{check.from.title} → {check.to.title}</span><b>{check.slackMin < 0 ? `少 ${Math.abs(check.slackMin)} 分` : `只剩 ${check.slackMin} 分`}</b></li>)}</ul>}
+            <aside className="day-summary glass-card"><div className="day-summary-top"><span className="kind-badge">{selectedDay.kind === "apsa" ? "APSA" : selectedDay.kind === "drive" ? "DRIVE" : selectedDay.kind === "flight" || selectedDay.kind === "return" ? "FLIGHT" : "EXPLORE"}</span><span>{selectedDay.location}</span></div><h2>{selectedDay.title}</h2><p>{selectedDay.note}</p>{rainyDays.has(selectedDay.id) && <div className="rain-note"><CloudRain size={16} />戶外項目已換成室內安排</div>}{selectedDay.adaptation && <button className="adaptation-note" onClick={() => openResponsePanel("delay", selectedDay.id, selectedDay.adaptation?.fromActivityId)}><AlarmClock size={16} /><span><strong>已從所選站點延後 {selectedDay.adaptation.delayMin} 分鐘</strong><small>固定行程維持原時間</small></span><ChevronRight size={16} /></button>}
             </aside>
             <div><ol className="timeline">{activities.map((activity, index) => {
-              const Icon = iconMap[activity.icon]; const leg = activity.travelFromPrevious; const TravelIcon = leg ? travelModeIcons[leg.mode] : null; const check = checksByDestination.get(activity.id);
+              const Icon = iconMap[activity.icon]; const leg = activity.travelFromPrevious; const TravelIcon = leg ? travelModeIcons[leg.mode] : null;
               const official = officialPlaceForActivity(activity);
               const confirmation = placeConfirmations.get(activity.id);
               const confirmedRecently = Boolean(confirmation && confirmation.expiresAt > (now?.getTime() ?? 0));
               return <li className="timeline-item" key={activity.id}><time className="timeline-time">{activity.timeLabel}</time><span className="timeline-node"><Icon size={16} /></span>{index < activities.length - 1 && <span className="timeline-rail" />}<div className="timeline-entry">
-                {leg && TravelIcon && <div className={`travel-leg ${check?.state ? `schedule-${check.state}` : ""}`} aria-label={`前往 ${activity.title} 的交通`}><span className="travel-leg-icon"><TravelIcon size={16} /></span><div className="travel-leg-copy"><span>{travelModeLabels[leg.mode]} · 約 {leg.minutes} 分</span><strong>{leg.summary}</strong>{leg.note && <small>{leg.note}</small>}</div><b>{check?.state === "conflict" ? `少 ${Math.abs(check.slackMin)} 分` : check?.state === "tight" ? `只剩 ${check.slackMin} 分` : `緩衝 ${leg.bufferMin} 分`}</b></div>}
+                {leg && TravelIcon && <div className="travel-leg" aria-label={`前往 ${activity.title} 的交通`}><span className="travel-leg-icon"><TravelIcon size={16} /></span><div className="travel-leg-copy"><span>{travelModeLabels[leg.mode]} · 約 {leg.minutes} 分</span><strong>{leg.summary}</strong>{leg.note && <small>{leg.note}</small>}</div><b>緩衝 {leg.bufferMin} 分</b></div>}
                 <article className={`activity-card glass-card ${activity.photo ? "has-photo" : ""}`}><div className="activity-content">{activity.photo && <a className="activity-photo" href={activity.photo.source} target="_blank" rel="noreferrer"><Image src={activity.photo.src} alt={activity.photo.alt} width={288} height={176} sizes="(max-width: 640px) 100vw, 144px" loading="lazy" /><small>{activity.photo.credit}</small></a>}<div><span className="activity-category">{categoryLabels[activity.category]} · 約 {activity.durationMin || "—"} 分</span><h3>{activity.title}</h3><p>{activity.detail}</p>{official && <button type="button" className={`place-stamp ${confirmedRecently ? "is-fresh" : "is-pending"}`} onClick={() => openResponsePanel("confirm", selectedDay.id, activity.id)}><BadgeCheck size={14} />{confirmedRecently ? `${confirmation?.authorName} 已確認` : confirmation ? "確認已過期" : "待確認營業"}</button>}</div></div><div className="activity-links">{activity.coordinates && <a href={mapUrl(activity)} target="_blank" rel="noreferrer" aria-label={`導航到 ${activity.title}`}><Navigation size={17} /></a>}{official && <a href={official.officialUrl} target="_blank" rel="noreferrer">{official.officialLabel}<ExternalLink size={14} /></a>}{activity.coordinates && !isProtectedActivity(activity) && <button onClick={() => openResponsePanel("nearby", selectedDay.id, activity.id)}><MapPinned size={15} />附近備案</button>}</div></article>
               </div></li>;
             })}</ol>{resolved.hidden.length > 0 && !revealedDays.has(selectedDay.id) && <button className="reveal-button" onClick={() => setRevealedDays((current) => new Set(current).add(selectedDay.id))}>顯示另外 {resolved.hidden.length} 項</button>}</div>

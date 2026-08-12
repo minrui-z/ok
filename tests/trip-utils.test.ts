@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { tripDays } from "../app/trip-data";
 import { parseMbtaAlerts, parseMlbGame, parseWeather, weatherLabel } from "../app/status-utils";
-import { checkSchedule, getStopState, resolveDayActivities } from "../app/trip-utils";
+import { getStopState, resolveDayActivities } from "../app/trip-utils";
 
 test("rain replacements are applied before intensity filtering", () => {
   const day = tripDays.find((item) => item.id === "sep-04")!;
@@ -21,22 +21,6 @@ test("rain-resolved activities preserve their original order", () => {
   const day = tripDays.find((item) => item.id === "sep-04")!;
   const result = resolveDayActivities(day, "standard", true);
   assert.deepEqual(result.all.map((activity) => activity.id), ["sep04-prep", "sep04-talk", "sep04-gardner", "sep04-mfa-rain", "sep04-dinner"]);
-});
-
-test("schedule checker includes duration, travel and buffer", () => {
-  const day = tripDays.find((item) => item.id === "sep-02")!;
-  const checks = checkSchedule(resolveDayActivities(day, "full", false).all);
-  const hotel = checks.find((check) => check.to.id === "sep02-hotel")!;
-  assert.equal(hotel.availableMin, 110);
-  assert.equal(hotel.requiredMin, 150);
-  assert.equal(hotel.slackMin, -40);
-  assert.equal(hotel.state, "conflict");
-});
-
-test("schedule checker excludes vague APSA blocks", () => {
-  const day = tripDays.find((item) => item.id === "sep-05")!;
-  const checks = checkSchedule(day.activities);
-  assert.equal(checks.some((check) => check.from.vague || check.to.vague), false);
 });
 
 test("ticketed fixed activities are not replaced by rain mode", () => {
@@ -76,6 +60,15 @@ test("rain replacements keep the original travel leg", () => {
   const rainy = resolveDayActivities(day, "standard", true).visible.find((activity) => activity.id === "sep08-marble-rain")!;
 
   assert.deepEqual(rainy.travelFromPrevious, original.travelFromPrevious);
+});
+
+test("Quincy Market remains explicit in both fair-weather and rain plans", () => {
+  const day = tripDays.find((item) => item.id === "sep-03")!;
+  const planned = day.activities.find((activity) => activity.id === "sep03-faneuil")!;
+  const rainy = resolveDayActivities(day, "full", true).all.find((activity) => activity.id === "sep03-market-rain")!;
+
+  assert.match(`${planned.title} ${planned.detail} ${planned.place}`, /Quincy Market/);
+  assert.match(`${rainy.title} ${rainy.detail} ${rainy.place}`, /Quincy Market/);
 });
 
 test("next-stop math compares explicit time zones by absolute time", () => {
