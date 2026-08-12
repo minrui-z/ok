@@ -697,13 +697,6 @@ main {
   z-index: 1;
 }
 
-.day-summary p {
-  color: var(--color-muted-text);
-  font-size: 14px;
-  line-height: 1.75;
-  margin: 0;
-}
-
 .timeline {
   list-style: none;
   margin: 0;
@@ -3126,7 +3119,7 @@ body:has(.response-dialog-backdrop) {
 .alert-details li span { color: var(--color-text); font-size: 11px; line-height: 1.5; }
 
 :root[data-theme="dark"] .status-error { color: #ffb5ad; }
-.day-summary h2 { color: var(--color-ink); font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; font-size: 36px; font-weight: 500; letter-spacing: -.04em; line-height: 1.08; margin: 72px 0 18px; position: relative; z-index: 1; }
+.day-summary h2 { color: var(--color-ink); font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif; font-size: 36px; font-weight: 500; letter-spacing: -.04em; line-height: 1.08; margin: 72px 0 0; position: relative; z-index: 1; }
 .activity-card h3 { color: var(--color-ink); font-size: 16px; letter-spacing: -.015em; margin: 0 0 7px; }
 .restaurant-heading h2 { color: var(--color-ink); font-family: "Iowan Old Style", Georgia, serif; font-size: 30px; font-weight: 500; margin: 5px 0 0; }
 
@@ -4329,14 +4322,6 @@ body:has(.response-dialog-backdrop) {
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.05em;
-}
-
-.editor-day-card p {
-  color: var(--color-muted-text);
-  font-size: 13px;
-  line-height: 1.65;
-  margin: 9px 0 0;
-  max-width: 70ch;
 }
 
 .editor-activity-list {

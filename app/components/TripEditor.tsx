@@ -272,7 +272,6 @@ export function TripEditor({ days, version, onUpdated }: { days: TripDay[]; vers
       weekday: dayDraft.weekday,
       location: dayDraft.location,
       title: dayDraft.title,
-      note: dayDraft.note,
       color: dayDraft.color,
       kind: dayDraft.kind,
     };
@@ -318,7 +317,7 @@ export function TripEditor({ days, version, onUpdated }: { days: TripDay[]; vers
       {historyOpen && <section className="version-history glass-card" aria-labelledby="history-title"><div className="editor-section-heading"><div><span className="section-kicker">CHANGE LOG</span><h2 id="history-title">修改紀錄</h2></div><button aria-label="關閉修改紀錄" onClick={() => setHistoryOpen(false)}><X size={18} /></button></div><div className="history-list">{history.map((item) => <article key={item.version}><span>v{item.version}</span><div><strong>{item.summary}</strong><small>{item.authorName} · {new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "short", timeZone: "America/New_York" }).format(new Date(item.createdAt))}</small></div>{item.version !== version && <button onClick={() => void restoreVersion(item.version)} disabled={busy}><RotateCcw size={15} />恢復</button>}</article>)}</div>{historyHasMore && <button className="secondary-button history-load-more" onClick={() => void loadHistory(history.at(-1)?.version)} disabled={busy}>載入更早紀錄</button>}</section>}
 
       {selectedDay && <>
-        <section className="editor-day-card glass-card"><div><span>{selectedDay.weekday} · {selectedDay.date}</span><h2>{selectedDay.title}</h2><p>{selectedDay.note}</p></div><button className="secondary-button compact" onClick={() => { setDayDraft(structuredClone(selectedDay)); setDayDraftBaseVersion(version); setError(""); }}><Pencil size={15} />修改日期資料</button></section>
+        <section className="editor-day-card glass-card"><div><span>{selectedDay.weekday} · {selectedDay.date}</span><h2>{selectedDay.title}</h2></div><button className="secondary-button compact" onClick={() => { setDayDraft(structuredClone(selectedDay)); setDayDraftBaseVersion(version); setError(""); }}><Pencil size={15} />修改日期資料</button></section>
         <ol className="editor-activity-list">{selectedDay.activities.map((activity, index) => <li className="editor-activity-card glass-card" key={activity.id}><div className="editor-order"><button aria-label={`上移 ${activity.title}`} disabled={busy || index === 0} onClick={() => void moveActivity(activity, selectedDay.id, index - 1)}><ArrowUp size={17} /></button><span>{index + 1}</span><button aria-label={`下移 ${activity.title}`} disabled={busy || index === selectedDay.activities.length - 1} onClick={() => void moveActivity(activity, selectedDay.id, index + 1)}><ArrowDown size={17} /></button></div><div className="editor-activity-copy"><span>{activity.timeLabel} · {categoryLabels[activity.category]}</span><strong>{activity.title}</strong><small>{activity.place ?? activity.detail}</small></div><label className="move-day-label">移至<select aria-label={`將 ${activity.title} 移到其他日期`} value={selectedDay.id} onChange={(event) => { const target = days.find((day) => day.id === event.target.value); if (target) void moveActivity(activity, target.id, target.activities.length); }}>{days.map((day) => <option key={day.id} value={day.id}>{day.date}</option>)}</select></label><div className="editor-row-actions"><button onClick={() => beginActivityEdit(activity, false)}><Pencil size={16} />修改</button><button className="danger" onClick={() => void deleteActivity(activity)}><Trash2 size={16} />刪除</button></div></li>)}</ol>
       </>}
 
@@ -336,7 +335,6 @@ export function TripEditor({ days, version, onUpdated }: { days: TripDay[]; vers
                 <label>星期<input value={dayDraft.weekday} onChange={(event) => setDayDraft({ ...dayDraft, weekday: event.target.value })} maxLength={16} required /></label>
                 <label>區域<input value={dayDraft.location} onChange={(event) => setDayDraft({ ...dayDraft, location: event.target.value })} maxLength={120} required /></label>
                 <label className="wide">標題<input value={dayDraft.title} onChange={(event) => setDayDraft({ ...dayDraft, title: event.target.value })} maxLength={160} required /></label>
-                <label className="wide">說明<textarea value={dayDraft.note} onChange={(event) => setDayDraft({ ...dayDraft, note: event.target.value })} maxLength={1000} rows={3} required /></label>
                 <label>顏色<input type="color" value={dayDraft.color} onChange={(event) => setDayDraft({ ...dayDraft, color: event.target.value })} /></label>
                 <label>類型<select value={dayDraft.kind} onChange={(event) => setDayDraft({ ...dayDraft, kind: event.target.value as TripDay["kind"] })}><option value="flight">航班</option><option value="city">市區</option><option value="apsa">APSA</option><option value="daytrip">近郊</option><option value="drive">自駕</option><option value="return">返程</option></select></label>
               </div>
