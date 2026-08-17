@@ -82,11 +82,11 @@ test("ranking includes travel and buffer before the next protected activity", ()
   const result = rankNearbyAlternatives({
     day,
     targetActivityId: "sep02-copley",
-    at: new Date("2026-09-02T14:15:00-04:00"),
+    at: new Date("2026-09-02T13:00:00-04:00"),
     minimumBufferMin: 15,
   });
 
-  assert.equal(result.nextProtected?.id, "sep02-rest");
+  assert.equal(result.nextProtected?.id, "sep07-arrive");
   assert.ok(result.suggestions.length >= 1);
   assert.equal(result.suggestions.every((suggestion) => suggestion.slackMin !== null && suggestion.slackMin >= 0), true);
   assert.equal(result.excluded.some((candidate) => candidate.status === "insufficient-time"), true);

@@ -169,11 +169,11 @@ test("day.adapt is versionable and validates protected and out-of-order skips", 
 
   assert.throws(() => applyOperation(source, parseOperation({
     type: "day.adapt",
-    dayId: "sep-03",
+    dayId: "sep-02",
     adaptation: {
-      fromActivityId: "sep03-common",
+      fromActivityId: "sep02-copley",
       delayMin: 15,
-      skippedActivityIds: ["sep03-apsa-event"],
+      skippedActivityIds: ["sep07-game"],
     },
   })), /不能省略/);
 });

@@ -341,11 +341,11 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
         baseVersion: itineraryVersion,
         operation: {
           type: "day.adapt",
-          dayId: "sep-03",
+          dayId: "sep-02",
           adaptation: {
-            fromActivityId: "sep03-common",
+            fromActivityId: "sep02-copley",
             delayMin: 15,
-            skippedActivityIds: ["sep03-apsa-event"],
+            skippedActivityIds: ["sep07-game"],
           },
         },
       },
@@ -380,7 +380,7 @@ test("collaboration API enforces unlock, ownership, limits and poll rules", asyn
       delayMin: 30,
       skippedActivityIds: ["sep03-uss"],
     });
-    assert.equal(adapted.days.find((day) => day.id === "sep-03").activities.find((activity) => activity.id === "sep03-common").timeLabel, "09:00");
+    assert.equal(adapted.days.find((day) => day.id === "sep-03").activities.find((activity) => activity.id === "sep03-common").timeLabel, "09:15");
   });
 
   await t.test("place confirmations are protected, derived from the itinerary and expire after 24 hours", async () => {

@@ -291,7 +291,7 @@ export function parseMlbGame(payload: JsonRecord): MlbGame | null {
     gameDate: dateValue(game.gameDate),
     status: textValue(status?.detailedState) ?? "待確認",
     abstractState: textValue(status?.abstractGameState) ?? "Preview",
-    away: textValue(away?.name) ?? "Los Angeles Angels",
+    away: textValue(away?.name) ?? "Seattle Mariners",
     home: textValue(home?.name) ?? "Boston Red Sox",
   };
 }
@@ -386,7 +386,7 @@ export function buildUrgentAlerts(input: {
       checkedAt: input.checkedAt,
       updatedAt: game.gameDate,
       destinations: ["boston"],
-      date: "2026-09-07",
+      date: "2026-09-02",
       notify: true,
     });
   }

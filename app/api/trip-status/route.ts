@@ -114,7 +114,7 @@ export async function GET() {
     requireArray(payload, "data");
     return parseMbtaAlerts(payload);
   });
-  const baseballRequest = readJson("https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId=111&date=2026-09-07").then((payload) => {
+  const baseballRequest = readJson("https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId=111&date=2026-09-02").then((payload) => {
     requireArray(payload, "dates");
     return parseMlbGame(payload);
   });
@@ -186,7 +186,7 @@ export async function GET() {
     source: sources.baseball,
     preference: "baseball",
     destination: "boston",
-    date: "2026-09-07",
+    date: "2026-09-02",
   });
 
   const places = getPlaceStatuses(checkedAt, itineraryDays);

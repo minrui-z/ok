@@ -96,7 +96,7 @@ export function StatusCenter({ selectedDate }: StatusCenterProps) {
   } else if (data?.transit.error) transitDetail = data.transit.error;
 
   let baseballTitle = loading && !data ? "更新中" : "賽程暫時無法讀取";
-  let baseballDetail = "9/7 13:35 Fenway Park；時間仍可能調整。";
+  let baseballDetail = "Boston 9/2 16:10；台灣時間 9/3 04:10。";
   if (data?.baseball.ok && data.baseball.game) {
     baseballTitle = `${data.baseball.game.away.replace("Los Angeles ", "")} @ ${data.baseball.game.home.replace("Boston ", "")} · ${data.baseball.game.status}`;
     if (delayed) baseballDetail = "官方狀態有變，請先不要前往球場。";
@@ -131,7 +131,7 @@ export function StatusCenter({ selectedDate }: StatusCenterProps) {
         </article>
         <article className={`status-card glass-card ${delayed || data?.baseball.ok === false ? "status-warning" : ""}`}>
           <span className="status-icon"><Trophy size={20} /></span>
-          <div><small>9/7 Red Sox</small><strong>{baseballTitle}</strong><p>{baseballDetail}</p></div>
+          <div><small>Boston 9/2 Red Sox</small><strong>{baseballTitle}</strong><p>{baseballDetail}</p></div>
           <a href={data?.baseball.game?.gamePk ? `https://www.mlb.com/gameday/${data.baseball.game.gamePk}` : data?.baseball.source ?? "https://www.mlb.com/redsox/schedule/2026-09"} target="_blank" rel="noreferrer" aria-label="MLB 官方賽程"><ExternalLink size={16} /></a>
         </article>
         <article className={`status-card places-card glass-card ${placeStatuses.some((place) => place.state !== "planned-open") ? "status-warning" : ""}`}>

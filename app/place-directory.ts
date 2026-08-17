@@ -8,7 +8,7 @@ export type OfficialPlace = {
   checkedAt: string;
 };
 
-const checkedAt = "2026-08-12";
+const checkedAt = "2026-08-17";
 
 const place = (
   title: string,
@@ -24,13 +24,12 @@ const place = (
 export const officialPlaces: Record<string, OfficialPlace> = {
   "sep02-copley": place("Boston Public Library", "https://www.bpl.org/locations/central/", ["Copley Square 與午餐", "Boston Public Library"]),
   "sep02-copley-rain": place("Boston Public Library", "https://www.bpl.org/locations/central/", ["Boston Public Library 與 Prudential Center"]),
-  "sep03-common": place("Freedom Trail", "https://www.thefreedomtrail.org/visit", ["Boston Common 起走", "Freedom Trail"]),
-  "sep03-common-rain": place("Old State House", "https://www.revolutionaryspaces.org/old-state-house/", ["Old State House"]),
+  "sep03-common": place("MIT", "https://www.mit.edu/visitmit/", ["MIT 校園", "MIT Welcome Center"]),
+  "sep03-common-rain": place("MIT Museum", "https://mitmuseum.mit.edu/visit", ["MIT Museum"]),
   "sep03-market-rain": place("Quincy Market", "https://faneuilhallmarketplace.com/", ["Quincy Market 與 Boston Public Market", "Quincy Market"]),
-  "sep03-old-north": place("Old North Church", "https://oldnorth.com/visit/", ["Paul Revere 與 Old North Church", "Old North Church"]),
-  "sep03-old-north-rain": place("Old North Church", "https://oldnorth.com/visit/", ["Old North Church 室內參觀"]),
-  "sep03-uss": place("USS Constitution", "https://www.nps.gov/bost/learn/historyculture/ussconst.htm", ["USS Constitution"]),
-  "sep03-uss-rain": place("USS Constitution Museum", "https://ussconstitutionmuseum.org/visit/", ["USS Constitution Museum"]),
+  "sep03-old-north": place("Harvard", "https://www.harvard.edu/visit/tours/", ["Harvard Yard"]),
+  "sep03-old-north-rain": place("Harvard Art Museums", "https://harvardartmuseums.org/visit", ["Harvard Art Museums"]),
+  "sep03-uss": place("Harvard Art Museums", "https://harvardartmuseums.org/visit", ["Harvard Art Museums"]),
   "sep04-gardner": place("Isabella Stewart Gardner Museum", "https://www.gardnermuseum.org/visit", ["Isabella Stewart Gardner Museum"], "參觀資訊"),
   "sep04-fens": place("Back Bay Fens", "https://www.emeraldnecklace.org/park-overview/back-bay-fens/", ["Back Bay Fens"]),
   "sep04-mfa-rain": place("Museum of Fine Arts", "https://www.mfa.org/visit", ["Museum of Fine Arts", "Museum of Fine Arts Boston"]),
@@ -42,10 +41,14 @@ export const officialPlaces: Record<string, OfficialPlace> = {
   "sep06-history-rain": place("The Witch House", "https://www.thewitchhouse.org/new-page-5", ["Witch House 與 PEM 延長參觀", "The Witch House at Salem"]),
   "sep06-gables": place("The House of the Seven Gables", "https://7gables.org/tickets/", ["Seven Gables 與 Derby Wharf", "The House of the Seven Gables"]),
   "sep06-gables-rain": place("The House of the Seven Gables", "https://7gables.org/tickets/", ["House of the Seven Gables 室內導覽"]),
-  "sep07-fens": place("Back Bay Fens", "https://www.emeraldnecklace.org/park-overview/back-bay-fens/", ["Emerald Necklace", "Back Bay Fens"]),
-  "sep07-mfa-rain": place("Museum of Fine Arts", "https://www.mfa.org/visit", ["Museum of Fine Arts", "Museum of Fine Arts Boston"]),
-  "sep07-arrive": place("Fenway Park", "https://www.mlb.com/redsox/ballpark", ["提早抵達 Fenway Park", "Fenway Park"]),
-  "sep07-game": place("Red Sox", "https://www.mlb.com/redsox/schedule/2026-09", ["Red Sox vs. Angels", "Fenway Park"], "官方賽程"),
+  "sep07-fens": place("Freedom Trail", "https://www.thefreedomtrail.org/visit", ["Boston Common 至 Quincy Market", "Boston Common Visitor Center"]),
+  "sep07-mfa-rain": place("Old State House", "https://www.revolutionaryspaces.org/old-state-house/", ["Old State House 與 Quincy Market", "Old State House"]),
+  "sep07-brunch": place("Quincy Market", "https://faneuilhallmarketplace.com/", ["Quincy Market 與 North End", "Quincy Market"]),
+  "sep07-market-rain": place("Quincy Market", "https://faneuilhallmarketplace.com/", ["Quincy Market 與 Old North Church", "Quincy Market"]),
+  "sep07-dinner": place("USS Constitution", "https://www.nps.gov/bost/learn/historyculture/ussconst.htm", ["Charlestown 與 USS Constitution", "USS Constitution"]),
+  "sep07-uss-rain": place("USS Constitution Museum", "https://ussconstitutionmuseum.org/visit/", ["USS Constitution Museum"]),
+  "sep07-arrive": place("Fenway Park", "https://www.mlb.com/redsox/ballpark", ["前往 Fenway Park", "Fenway Park"]),
+  "sep07-game": place("Red Sox vs. Mariners", "https://www.mlb.com/gameday/824717", ["Red Sox vs. Mariners", "Fenway Park"], "MLB 場次"),
   "sep08-breakers": place("The Breakers", "https://www.newportmansions.org/mansions-and-gardens/the-breakers/", ["The Breakers"], "參觀資訊"),
   "sep08-cliff": place("Newport Cliff Walk", "https://www.discovernewport.org/things-to-do/cliff-walk/", ["Cliff Walk 北段", "Cliff Walk 40 Steps"]),
   "sep08-marble-rain": place("Marble House", "https://www.newportmansions.org/mansions-and-gardens/marble-house/", ["Marble House"]),

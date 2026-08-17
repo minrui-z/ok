@@ -26,8 +26,8 @@ type CuratedPlaceStatus = Omit<PlaceStatus, "checkedAt" | "curatedAt">;
 
 // These are date-specific trip checks compiled from the linked official visitor pages.
 // "planned-open" means the planned arrival fits the published hours, not a live door sensor.
-// Sources were last reviewed on 2026-08-12 and are intentionally explicit when the date is not confirmed.
-const curatedAt = "2026-08-12";
+// Sources were last reviewed on 2026-08-17 and are intentionally explicit when the date is not confirmed.
+const curatedAt = "2026-08-17";
 
 const curatedPlaces: CuratedPlaceStatus[] = [
   {
@@ -46,19 +46,34 @@ const curatedPlaces: CuratedPlaceStatus[] = [
     sourceLabel: "BPL 官方館舍頁",
   },
   {
-    id: "uss-sep03",
+    id: "mit-sep03",
     dayId: "sep-03",
-    activityId: "sep03-uss",
-    name: "USS Constitution",
+    activityId: "sep03-common",
+    name: "MIT Welcome Center",
     date: "2026-09-03",
-    visitTime: "14:10",
+    visitTime: "09:15",
     destination: "boston",
-    state: "unconfirmed",
+    state: "planned-open",
     impact: "none",
-    summary: "9/3 的登艦與臨時管制尚未由本站確認。",
-    detail: "NPS 有官方參觀頁，但安全、軍方活動與天候都可能臨時影響登艦。",
-    source: "https://www.nps.gov/bost/learn/historyculture/ussconst.htm",
-    sourceLabel: "NPS 官方頁",
+    summary: "週四 Welcome Center 公布時段為 09:00–16:00，09:15 行程落在時段內。",
+    detail: "MIT 校園可自行步行；Welcome Center 若臨時關閉，仍可從 Kendall Square 開始自助參觀。",
+    source: "https://www.mit.edu/visitmit/",
+    sourceLabel: "MIT 官方參觀頁",
+  },
+  {
+    id: "harvard-sep03",
+    dayId: "sep-03",
+    activityId: "sep03-old-north",
+    name: "Harvard Visitor Center",
+    date: "2026-09-03",
+    visitTime: "13:30",
+    destination: "boston",
+    state: "planned-open",
+    impact: "none",
+    summary: "週四 Visitor Center 公布時段為 09:00–17:00，13:30 行程落在時段內。",
+    detail: "官方導覽要事先登記；沒有名額時，使用官方自助導覽即可。",
+    source: "https://www.harvard.edu/visit/tours/",
+    sourceLabel: "Harvard 官方導覽頁",
   },
   {
     id: "gardner-sep04",
@@ -106,19 +121,34 @@ const curatedPlaces: CuratedPlaceStatus[] = [
     sourceLabel: "PEM 官方參觀頁",
   },
   {
-    id: "fenway-sep07",
-    dayId: "sep-07",
+    id: "fenway-sep02",
+    dayId: "sep-02",
     activityId: "sep07-game",
     name: "Fenway Park／Red Sox",
-    date: "2026-09-07",
-    visitTime: "13:35",
+    date: "2026-09-02",
+    visitTime: "16:10",
     destination: "boston",
     state: "unconfirmed",
     impact: "none",
     summary: "球場狀態以 MLB 當日賽程為準，目前不把排定賽程當作已開門。",
     detail: "延期、取消或延後開賽會由 MLB 狀態卡與警告列另外顯示。",
-    source: "https://www.mlb.com/redsox/schedule/2026-09",
-    sourceLabel: "MLB 官方賽程",
+    source: "https://www.mlb.com/gameday/824717",
+    sourceLabel: "MLB 官方場次",
+  },
+  {
+    id: "uss-sep07",
+    dayId: "sep-07",
+    activityId: "sep07-dinner",
+    name: "USS Constitution",
+    date: "2026-09-07",
+    visitTime: "15:00",
+    destination: "boston",
+    state: "unconfirmed",
+    impact: "none",
+    summary: "9/7 的登艦與 Labor Day 臨時管制尚未由本站確認。",
+    detail: "NPS 有官方參觀頁，但安全、軍方活動與假日安排都可能影響登艦。",
+    source: "https://www.nps.gov/bost/learn/historyculture/ussconst.htm",
+    sourceLabel: "NPS 官方頁",
   },
   {
     id: "breakers-sep08",

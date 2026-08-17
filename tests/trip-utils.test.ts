@@ -24,7 +24,7 @@ test("rain-resolved activities preserve their original order", () => {
 });
 
 test("ticketed fixed activities are not replaced by rain mode", () => {
-  const day = tripDays.find((item) => item.id === "sep-07")!;
+  const day = tripDays.find((item) => item.id === "sep-02")!;
   const result = resolveDayActivities(day, "full", true);
   assert.equal(result.visible.some((activity) => activity.id === "sep07-game"), true);
 });
@@ -63,12 +63,32 @@ test("rain replacements keep the original travel leg", () => {
 });
 
 test("Quincy Market remains explicit in both fair-weather and rain plans", () => {
-  const day = tripDays.find((item) => item.id === "sep-03")!;
-  const planned = day.activities.find((activity) => activity.id === "sep03-faneuil")!;
-  const rainy = resolveDayActivities(day, "full", true).all.find((activity) => activity.id === "sep03-market-rain")!;
+  const day = tripDays.find((item) => item.id === "sep-07")!;
+  const planned = day.activities.find((activity) => activity.id === "sep07-brunch")!;
+  const rainy = resolveDayActivities(day, "full", true).all.find((activity) => activity.id === "sep07-market-rain")!;
 
   assert.match(`${planned.title} ${planned.detail} ${planned.place}`, /Quincy Market/);
   assert.match(`${rainy.title} ${rainy.detail} ${rainy.place}`, /Quincy Market/);
+});
+
+test("Cambridge day includes both MIT and Harvard while Freedom Trail stays on 9/7", () => {
+  const cambridge = tripDays.find((item) => item.id === "sep-03")!;
+  const freedomTrail = tripDays.find((item) => item.id === "sep-07")!;
+
+  assert.match(cambridge.activities.map((activity) => activity.title).join(" "), /MIT/);
+  assert.match(cambridge.activities.map((activity) => activity.title).join(" "), /Harvard/);
+  assert.match(freedomTrail.title, /Freedom Trail/);
+  assert.equal(freedomTrail.activities.some((activity) => /Quincy Market/.test(`${activity.title} ${activity.detail}`)), true);
+});
+
+test("purchased Mariners ticket uses the official Boston date and time", () => {
+  const arrivalDay = tripDays.find((item) => item.id === "sep-02")!;
+  const game = arrivalDay.activities.find((activity) => activity.id === "sep07-game")!;
+
+  assert.equal(game.title, "Red Sox vs. Mariners");
+  assert.equal(game.start, "2026-09-02T16:10:00-04:00");
+  assert.equal(game.ticketed, true);
+  assert.equal(game.fixed, true);
 });
 
 test("next-stop math compares explicit time zones by absolute time", () => {
@@ -114,7 +134,7 @@ test("official status payloads degrade into stable display data", () => {
   assert.equal(alerts[0].title, "Green Line delay");
   assert.equal(alerts[0].severity, 7);
 
-  const game = parseMlbGame({ dates: [{ games: [{ gamePk: 824715, gameDate: "2026-09-07T17:35:00Z", status: { detailedState: "Scheduled", abstractGameState: "Preview" }, teams: { away: { team: { name: "Los Angeles Angels" } }, home: { team: { name: "Boston Red Sox" } } } }] }] });
-  assert.equal(game?.gamePk, 824715);
+  const game = parseMlbGame({ dates: [{ games: [{ gamePk: 824717, gameDate: "2026-09-02T20:10:00Z", status: { detailedState: "Scheduled", abstractGameState: "Preview" }, teams: { away: { team: { name: "Seattle Mariners" } }, home: { team: { name: "Boston Red Sox" } } } }] }] });
+  assert.equal(game?.gamePk, 824717);
   assert.equal(game?.status, "Scheduled");
 });
